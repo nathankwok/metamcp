@@ -1,0 +1,58 @@
+# Cloud Build configuration for MetaMCP Frontend only
+# Use this for frontend-only deployments and updates
+
+steps:
+  # Build the frontend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-frontend'
+    args:
+      - 'build'
+      - '--file=cloud-run/Dockerfile.frontend'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-frontend:$SHORT_SHA'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+      - '--cache-from=gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+      - '.'
+    timeout: '600s'
+
+  # Push frontend image with SHA tag
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-frontend'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/metamcp-frontend:$SHORT_SHA'
+    waitFor: ['build-frontend']
+
+  # Push frontend image with latest tag
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-frontend-latest'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+    waitFor: ['build-frontend']
+
+# Images to be pushed to Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/metamcp-frontend:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+
+# Build options
+options:
+  # Use standard machine for frontend-only builds
+  machineType: 'E2_STANDARD_4'
+  
+  # Disk size for build
+  diskSizeGb: 50
+  
+  # Logging configuration
+  logging: CLOUD_LOGGING_ONLY
+  
+  # Substitution options
+  substitution_option: 'ALLOW_LOOSE'
+
+# Build timeout (10 minutes)
+timeout: '600s'
+
+# Substitutions
+substitutions:
+  _ENVIRONMENT: 'production'
+  _SERVICE_NAME: 'metamcp-frontend'

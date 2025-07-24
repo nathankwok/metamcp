@@ -1,0 +1,99 @@
+# Cloud Build configuration for MetaMCP Cloud Run deployment
+# Builds both frontend and backend services
+
+steps:
+  # Build the backend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-backend'
+    args:
+      - 'build'
+      - '--file=cloud-run/Dockerfile.backend'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-backend:$SHORT_SHA'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-backend:latest'
+      - '--cache-from=gcr.io/$PROJECT_ID/metamcp-backend:latest'
+      - '.'
+    timeout: '1200s'
+
+  # Build the frontend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-frontend'
+    args:
+      - 'build'
+      - '--file=cloud-run/Dockerfile.frontend'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-frontend:$SHORT_SHA'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+      - '--cache-from=gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+      - '.'
+    timeout: '1200s'
+
+  # Push backend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-backend'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/metamcp-backend:$SHORT_SHA'
+    waitFor: ['build-backend']
+
+  # Push frontend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-frontend'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/metamcp-frontend:$SHORT_SHA'
+    waitFor: ['build-frontend']
+
+  # Push latest tags
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-backend-latest'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/metamcp-backend:latest'
+    waitFor: ['build-backend']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-frontend-latest'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+    waitFor: ['build-frontend']
+
+# Images to be pushed to Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/metamcp-backend:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/metamcp-backend:latest'
+  - 'gcr.io/$PROJECT_ID/metamcp-frontend:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+
+# Build options
+options:
+  # Use high-CPU machine for faster builds
+  machineType: 'E2_HIGHCPU_8'
+  
+  # Disk size for build
+  diskSizeGb: 100
+  
+  # Logging configuration
+  logging: CLOUD_LOGGING_ONLY
+  
+  # Substitution options
+  substitution_option: 'ALLOW_LOOSE'
+  
+  # Dynamic substitutions
+  dynamic_substitutions: true
+
+# Build timeout (20 minutes)
+timeout: '1200s'
+
+# Substitutions for environment variables
+substitutions:
+  _ENVIRONMENT: 'production'
+  _REGION: 'us-central1'
+
+# Available substitution variables:
+# $PROJECT_ID - Google Cloud Project ID
+# $BUILD_ID - Unique build ID
+# $SHORT_SHA - First 7 characters of commit SHA
+# $COMMIT_SHA - Full commit SHA
+# $BRANCH_NAME - Git branch name
+# $TAG_NAME - Git tag name (if triggered by tag)
+# $REPO_NAME - Repository name

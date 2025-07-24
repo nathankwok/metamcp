@@ -81,6 +81,60 @@ enable_apis() {
     print_success "APIs enabled successfully"
 }
 
+# Function to process environment variables
+process_env_vars() {
+    local env_file=$1
+    local output_file=$2
+    
+    print_status "Processing environment variables for $env_file..."
+    
+    # Create a temporary file for processed environment variables
+    cp "$env_file" "$output_file"
+    
+    # Use envsubst to substitute environment variables
+    if command -v envsubst &> /dev/null; then
+        envsubst < "$env_file" > "$output_file"
+    else
+        # Fallback: manual substitution for common patterns
+        sed -i "s|\${PROJECT_ID:-[^}]*}|$PROJECT_ID|g" "$output_file"
+        sed -i "s|\${REGION:-[^}]*}|$REGION|g" "$output_file"
+        sed -i "s|\${ENVIRONMENT:-[^}]*}|$ENVIRONMENT|g" "$output_file"
+        
+        # Process database environment variables
+        if [[ -n "$DB_HOST" ]]; then
+            sed -i "s|\${DB_HOST:-[^}]*}|$DB_HOST|g" "$output_file"
+        fi
+        if [[ -n "$DB_NAME" ]]; then
+            sed -i "s|\${DB_NAME:-[^}]*}|$DB_NAME|g" "$output_file"
+        fi
+        if [[ -n "$DB_USER" ]]; then
+            sed -i "s|\${DB_USER:-[^}]*}|$DB_USER|g" "$output_file"
+        fi
+        if [[ -n "$BETTER_AUTH_URL" ]]; then
+            sed -i "s|\${BETTER_AUTH_URL:-[^}]*}|$BETTER_AUTH_URL|g" "$output_file"
+        fi
+        if [[ -n "$REDIS_URL" ]]; then
+            sed -i "s|\${REDIS_URL:-[^}]*}|$REDIS_URL|g" "$output_file"
+        fi
+        if [[ -n "$CORS_ORIGINS" ]]; then
+            sed -i "s|\${CORS_ORIGINS:-[^}]*}|$CORS_ORIGINS|g" "$output_file"
+        fi
+        
+        # Process frontend environment variables
+        if [[ -n "$NEXT_PUBLIC_BACKEND_URL" ]]; then
+            sed -i "s|\${NEXT_PUBLIC_BACKEND_URL}|$NEXT_PUBLIC_BACKEND_URL|g" "$output_file"
+        fi
+        if [[ -n "$NEXT_PUBLIC_APP_NAME" ]]; then
+            sed -i "s|\${NEXT_PUBLIC_APP_NAME:-[^}]*}|$NEXT_PUBLIC_APP_NAME|g" "$output_file"
+        fi
+        if [[ -n "$NEXT_PUBLIC_APP_VERSION" ]]; then
+            sed -i "s|\${NEXT_PUBLIC_APP_VERSION:-[^}]*}|$NEXT_PUBLIC_APP_VERSION|g" "$output_file"
+        fi
+    fi
+    
+    print_success "Environment variables processed"
+}
+
 # Function to build images
 build_images() {
     print_status "Building Docker images using Cloud Build..."
@@ -99,6 +153,11 @@ build_images() {
 deploy_backend() {
     print_status "Deploying backend service..."
     
+    # Process environment variables for backend
+    ENV_FILE="cloud-run/env/backend.$ENVIRONMENT.env.yaml"
+    PROCESSED_ENV_FILE="/tmp/backend.env.yaml"
+    process_env_vars "$ENV_FILE" "$PROCESSED_ENV_FILE"
+    
     # Get the latest image
     BACKEND_IMAGE="gcr.io/$PROJECT_ID/metamcp-backend:latest"
     
@@ -108,7 +167,7 @@ deploy_backend() {
         --platform=managed \
         --region=$REGION \
         --project=$PROJECT_ID \
-        --env-vars-file=cloud-run/env/backend.$ENVIRONMENT.env.yaml \
+        --env-vars-file="$PROCESSED_ENV_FILE" \
         --allow-unauthenticated \
         --memory=2Gi \
         --cpu=2 \
@@ -117,6 +176,9 @@ deploy_backend() {
         --min-instances=0 \
         --timeout=3600 \
         --port=8080
+    
+    # Clean up temporary file
+    rm -f "$PROCESSED_ENV_FILE"
     
     print_success "Backend service deployed successfully"
 }
@@ -139,17 +201,24 @@ deploy_frontend() {
     print_status "Backend URL: $BACKEND_URL"
     print_status "Deploying frontend service..."
     
+    # Set backend URL for environment variable processing
+    export NEXT_PUBLIC_BACKEND_URL="$BACKEND_URL"
+    
+    # Process environment variables for frontend
+    ENV_FILE="cloud-run/env/frontend.$ENVIRONMENT.env.yaml"
+    PROCESSED_ENV_FILE="/tmp/frontend.env.yaml"
+    process_env_vars "$ENV_FILE" "$PROCESSED_ENV_FILE"
+    
     # Get the latest image
     FRONTEND_IMAGE="gcr.io/$PROJECT_ID/metamcp-frontend:latest"
     
-    # Deploy frontend service with backend URL
+    # Deploy frontend service with processed environment variables
     gcloud run deploy $FRONTEND_SERVICE \
         --image=$FRONTEND_IMAGE \
         --platform=managed \
         --region=$REGION \
         --project=$PROJECT_ID \
-        --env-vars-file=cloud-run/env/frontend.$ENVIRONMENT.env.yaml \
-        --set-env-vars=NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL \
+        --env-vars-file="$PROCESSED_ENV_FILE" \
         --allow-unauthenticated \
         --memory=1Gi \
         --cpu=1 \
@@ -158,6 +227,9 @@ deploy_frontend() {
         --min-instances=0 \
         --timeout=300 \
         --port=8080
+    
+    # Clean up temporary file
+    rm -f "$PROCESSED_ENV_FILE"
     
     print_success "Frontend service deployed successfully"
 }

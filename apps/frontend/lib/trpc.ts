@@ -2,6 +2,8 @@ import { createAppRouter } from "@repo/trpc";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import { type CreateTRPCReact, createTRPCReact } from "@trpc/react-query";
 
+import { getApiUrl } from "./env";
+
 // Create a type that matches the backend router
 type AppRouter = ReturnType<typeof createAppRouter>;
 
@@ -13,7 +15,7 @@ export const trpc: CreateTRPCReact<AppRouter, unknown> =
 export const reactTrpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: "/trpc",
+      url: `${getApiUrl()}/trpc/frontend`,
       // Include credentials (cookies) in requests for better-auth
       fetch(url, options) {
         return fetch(url, {
@@ -28,7 +30,7 @@ export const reactTrpcClient = trpc.createClient({
 export const vanillaTrpcClient = createTRPCProxyClient<AppRouter>({
   links: [
     httpBatchLink({
-      url: "/trpc",
+      url: `${getApiUrl()}/trpc/frontend`,
       // Include credentials (cookies) in requests for better-auth
       fetch(url, options) {
         return fetch(url, {

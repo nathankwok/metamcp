@@ -78,16 +78,15 @@ app.use("/mcp-proxy", mcpProxyRouter);
 // Mount tRPC routes
 app.use("/trpc", trpcRouter);
 
-app.listen(12009, async () => {
-  console.log(`Server is running on port 12009`);
-  console.log(`Auth routes available at: http://localhost:12009/api/auth`);
-  console.log(
-    `Public MetaMCP endpoints available at: http://localhost:12009/metamcp`,
-  );
-  console.log(
-    `MCP Proxy routes available at: http://localhost:12009/mcp-proxy`,
-  );
-  console.log(`tRPC routes available at: http://localhost:12009/trpc`);
+const port = process.env.PORT || 8080;
+const baseUrl = process.env.APP_URL || `http://localhost:${port}`;
+
+app.listen(port, async () => {
+  console.log(`Server is running on port ${port}`);
+  console.log(`Auth routes available at: ${baseUrl}/api/auth`);
+  console.log(`Public MetaMCP endpoints available at: ${baseUrl}/metamcp`);
+  console.log(`MCP Proxy routes available at: ${baseUrl}/mcp-proxy`);
+  console.log(`tRPC routes available at: ${baseUrl}/trpc`);
 
   // Initialize idle servers after server starts
   await initializeIdleServers();

@@ -35,12 +35,14 @@ echo "🏥 Health check available at: http://localhost:$PORT/api/health"
 # Start the Next.js frontend server
 echo "🌐 Starting Next.js frontend server on port $PORT..."
 
-# Use the existing start command from package.json but for frontend only
-# This assumes the package.json has a "start:frontend" script
+# Change to the frontend directory and use the frontend's start script
+cd /app/apps/frontend
+
+# Use the frontend start command from package.json
 if command -v pnpm &> /dev/null; then
-    exec pnpm run start:frontend
+    exec pnpm run start
 elif command -v npm &> /dev/null; then
-    exec npm run start:frontend
+    exec npm run start
 else
     echo "❌ Error: Neither pnpm nor npm found"
     exit 1

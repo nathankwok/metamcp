@@ -179,8 +179,8 @@ create_secrets() {
     BETTER_AUTH_SECRET=$(openssl rand -hex 32)
     if gcloud secrets describe metamcp-better-auth-secret-production --project="$PROJECT_ID" &>/dev/null; then
         print_status "Secret exists, adding new version..."
-        echo "$BETTER_AUTH_SECRET" | gcloud secrets versions add metamcp-better-auth-secret-production \
-            --data-file=- --project="$PROJECT_ID"
+#        echo "$BETTER_AUTH_SECRET" | gcloud secrets versions add metamcp-better-auth-secret-production \
+#            --data-file=- --project="$PROJECT_ID"
     else
         print_status "Creating new secret..."
         echo "$BETTER_AUTH_SECRET" | gcloud secrets create metamcp-better-auth-secret-production \
@@ -221,13 +221,20 @@ deploy_backend() {
     
     local backend_image="gcr.io/$PROJECT_ID/metamcp-backend:$GIT_SHORT_SHA"
     
+    # Get frontend URL first (needed for APP_URL environment variable)
+    local frontend_url=$(gcloud run services describe "$FRONTEND_SERVICE" \
+        --region="$REGION" \
+        --project="$PROJECT_ID" \
+        --format='value(status.url)' 2>/dev/null || echo "https://$FRONTEND_SERVICE-$PROJECT_ID.${REGION}.run.app")
+    
     print_status "Deploying $BACKEND_SERVICE with image: $backend_image..."
+    print_status "Using frontend URL for APP_URL: $frontend_url"
     gcloud run deploy "$BACKEND_SERVICE" \
         --image="$backend_image" \
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production" \
+        --set-env-vars="NODE_ENV=production,APP_URL=$frontend_url" \
         --set-secrets="DATABASE_URL=metamcp-database-url-production:latest,BETTER_AUTH_SECRET=metamcp-better-auth-secret-production:latest" \
         --memory=1Gi \
         --cpu=1000m \
@@ -316,7 +323,7 @@ test_deployment() {
     
     # Test backend health
     print_status "Testing backend health endpoint..."
-    if curl -f -s "$BACKEND_URL/api/health" > /dev/null; then
+    if curl -f -s "$BACKEND_URL/health" > /dev/null; then
         print_success "Backend health check passed ✅"
     else
         print_warning "Backend health check failed (this might be normal if health endpoint doesn't exist yet)"
@@ -364,7 +371,7 @@ show_deployment_summary() {
     echo "   DATABASE_URL=\"\$SUPABASE_CONNECTION_STRING\" pnpm db:migrate"
     echo ""
     echo "2. 🧪 Test your deployment:"
-    echo "   curl $BACKEND_URL/api/health"
+    echo "   curl $BACKEND_URL/health"
     echo "   open $FRONTEND_URL"
     echo ""
     echo "3. 📈 Monitor your services:"

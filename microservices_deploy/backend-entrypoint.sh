@@ -31,7 +31,7 @@ chmod -R 755 /app/data 2>/dev/null || true
 chmod -R 755 /app/logs 2>/dev/null || true
 
 # Health check endpoint setup
-echo "🏥 Health check available at: http://localhost:$PORT/api/health"
+echo "🏥 Health check available at: http://localhost:$PORT/health"
 
 # Start the backend server
 echo "⚙️ Starting MetaMCP backend server on port $PORT..."

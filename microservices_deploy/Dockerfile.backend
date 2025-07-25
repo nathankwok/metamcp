@@ -37,7 +37,7 @@ EXPOSE 12009
 
 # Health check endpoint for Cloud Run
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:12009/api/health || exit 1
+  CMD curl -f http://localhost:12009/health || exit 1
 
 # Use Cloud Run specific entrypoint - Run node directly
 WORKDIR /app/apps/backend

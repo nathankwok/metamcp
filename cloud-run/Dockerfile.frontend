@@ -16,6 +16,10 @@ ENV NEXT_PUBLIC_VERCEL_URL=""
 USER root
 RUN id -u nextjs &>/dev/null || useradd -r -d /app -s /bin/bash nextjs
 
+# Create and set permissions for Next.js directories
+RUN mkdir -p /app/.next && chmod -R 755 /app/.next
+RUN mkdir -p /app/apps/frontend/.next && chmod -R 755 /app/apps/frontend/.next
+
 # Copy Cloud Run specific entrypoint script
 COPY cloud-run/frontend-entrypoint.sh /app/
 RUN chmod +x /app/frontend-entrypoint.sh
@@ -30,5 +34,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8080/api/health || exit 1
 
-# Use Cloud Run specific entrypoint
-ENTRYPOINT ["/app/frontend-entrypoint.sh"]
+# Use Cloud Run specific entrypoint - Run node directly
+WORKDIR /app/apps/frontend
+CMD ["npm", "run", "start"]

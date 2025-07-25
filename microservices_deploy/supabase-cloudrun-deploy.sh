@@ -191,29 +191,87 @@ create_secrets() {
     echo ""
 }
 
-# Function to build container images
-build_images() {
-    print_status "Building container images using Cloud Build..."
-    
-    # Check if cloudbuild.yaml exists
-    if [[ ! -f "microservices_deploy/cloudbuild.yaml" ]]; then
-        print_error "microservices_deploy/cloudbuild.yaml not found!"
-        print_error "Make sure you're running this script from the project root directory."
+run_migrations() {
+    print_status "Running database migrations..."
+
+    # Check if we're in the project root and backend exists
+    if [[ ! -d "apps/backend" ]]; then
+        print_error "apps/backend directory not found. Make sure you're in the project root."
         exit 1
     fi
-    
-    print_status "Submitting build to Cloud Build..."
-    print_status "Using git SHA: $GIT_SHORT_SHA"
-    gcloud builds submit \
-        --config=microservices_deploy/cloudbuild.yaml \
-        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION",SHORT_SHA="$GIT_SHORT_SHA" \
-        --project="$PROJECT_ID" \
-        --timeout=20m \
-        .
-    
-    print_success "Images built successfully ✅"
+
+    # Check if drizzle directory exists with migration files
+    if [[ ! -d "apps/backend/drizzle" ]]; then
+        print_warning "No drizzle directory found in apps/backend. Skipping migrations."
+        return 0
+    fi
+
+    # Check if there are any .sql files in drizzle directory
+    if ! ls apps/backend/drizzle/*.sql >/dev/null 2>&1; then
+        print_status "No migration files found in apps/backend/drizzle. Skipping migrations."
+        return 0
+    fi
+
+    print_status "Found migration files, running migrations..."
+
+    # Store current directory
+    local original_dir=$(pwd)
+
+    # Change to backend directory
+    cd apps/backend
+
+    # Set the database URL for migrations
+    export DATABASE_URL="$SUPABASE_CONNECTION_STRING"
+
+    # Run migrations using drizzle-kit
+    print_status "Executing: pnpm exec drizzle-kit migrate"
+    if pnpm exec drizzle-kit migrate; then
+        print_success "Migrations completed successfully! ✅"
+    else
+        print_error "❌ Migration failed! Deployment will continue but database may be out of sync."
+        print_error "You may need to run migrations manually:"
+        print_error "cd apps/backend && DATABASE_URL=\"\$SUPABASE_CONNECTION_STRING\" pnpm exec drizzle-kit migrate"
+
+        # Ask if user wants to continue
+        echo -n "Continue with deployment anyway? (y/N): "
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            print_error "Deployment cancelled due to migration failure"
+            cd "$original_dir"
+            exit 1
+        fi
+        print_warning "Continuing deployment despite migration failure..."
+    fi
+
+    # Return to original directory
+    cd "$original_dir"
+
     echo ""
 }
+
+# Function to build container images
+#build_images() {
+#    print_status "Building container images using Cloud Build..."
+#    
+#    # Check if cloudbuild.yaml exists
+#    if [[ ! -f "microservices_deploy/cloudbuild.yaml" ]]; then
+#        print_error "microservices_deploy/cloudbuild.yaml not found!"
+#        print_error "Make sure you're running this script from the project root directory."
+#        exit 1
+#    fi
+#    
+#    print_status "Submitting build to Cloud Build..."
+#    print_status "Using git SHA: $GIT_SHORT_SHA"
+#    gcloud builds submit \
+#        --config=microservices_deploy/cloudbuild.yaml \
+#        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION",SHORT_SHA="$GIT_SHORT_SHA" \
+#        --project="$PROJECT_ID" \
+#        --timeout=20m \
+#        .
+#    
+#    print_success "Images built successfully ✅"
+#    echo ""
+#}
 
 # Function to deploy backend service
 deploy_backend() {
@@ -401,7 +459,9 @@ main() {
     load_configuration
     enable_apis
     create_secrets
-    build_images
+    run_migrations
+    build_backend_image
+    build_frontend_image
     deploy_backend
     deploy_frontend
     test_deployment
@@ -416,6 +476,8 @@ case "${1:-}" in
         load_configuration
         enable_apis
         create_secrets
+        run_migrations
+        build_backend_image
         build_images
         deploy_backend
         print_success "Backend deployment completed!"
@@ -424,6 +486,7 @@ case "${1:-}" in
         print_status "Deploying frontend service only..."
         check_prerequisites
         load_configuration
+        build_frontend_image
         deploy_frontend
         print_success "Frontend deployment completed!"
         ;;
@@ -432,7 +495,8 @@ case "${1:-}" in
         check_prerequisites
         load_configuration
         enable_apis
-        build_images
+        build_backend_image
+        build_frontend_image
         print_success "Build completed!"
         ;;
     "secrets")
@@ -442,6 +506,14 @@ case "${1:-}" in
         enable_apis
         create_secrets
         print_success "Secrets created!"
+        ;;
+    "migrate")
+        print_status "Running database migrations only..."
+        check_prerequisites
+        load_configuration
+        test_database_connection
+        run_migrations
+        print_success "Migration completed!"
         ;;
     "test")
         print_status "Testing deployment..."
@@ -456,13 +528,16 @@ case "${1:-}" in
         echo "Usage: $0 [command]"
         echo ""
         echo "Commands:"
-        echo "  (no args)  Full deployment (default)"  
-        echo "  backend    Deploy backend service only"
-        echo "  frontend   Deploy frontend service only"
-        echo "  build      Build container images only"
-        echo "  secrets    Create/update secrets only"
-        echo "  test       Test existing deployment"
-        echo "  help       Show this help message"
+        echo "  (no args)       Full deployment (default)"  
+        echo "  backend         Deploy backend service only"
+        echo "  frontend        Deploy frontend service only"
+        echo "  build           Build all container images"
+        echo "  build-backend   Build backend container image only"
+        echo "  build-frontend  Build frontend container image only"
+        echo "  secrets         Create/update secrets only"
+        echo "  migrate         Run database migrations only"
+        echo "  test            Test existing deployment"
+        echo "  help            Show this help message"
         echo ""
         echo "Required Environment Variables:"
         echo "  PROJECT_ID                  Google Cloud Project ID"
@@ -486,3 +561,61 @@ case "${1:-}" in
         main
         ;;
 esac
+
+# Function to build backend container image
+build_backend_image() {
+    print_status "Building backend container image using Cloud Build..."
+    
+    # Check if backend cloudbuild.yaml exists
+    if [[ ! -f "microservices_deploy/cloudbuild-backend.yaml" ]]; then
+        print_error "microservices_deploy/cloudbuild-backend.yaml not found!"
+        print_error "Make sure you're running this script from the project root directory."
+        exit 1
+    fi
+    
+    print_status "Submitting backend build to Cloud Build..."
+    print_status "Using git SHA: $GIT_SHORT_SHA"
+    gcloud builds submit \
+        --config=microservices_deploy/cloudbuild-backend.yaml \
+        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION",SHORT_SHA="$GIT_SHORT_SHA" \
+        --project="$PROJECT_ID" \
+        --timeout=15m \
+        .
+    
+    print_success "Backend image built successfully ✅"
+    print_status "Backend image: gcr.io/$PROJECT_ID/metamcp-backend:$GIT_SHORT_SHA"
+    echo ""
+}
+
+# Function to build frontend container image
+build_frontend_image() {
+    print_status "Building frontend container image using Cloud Build..."
+    
+    # Check if frontend cloudbuild.yaml exists
+    if [[ ! -f "microservices_deploy/cloudbuild-frontend.yaml" ]]; then
+        print_error "microservices_deploy/cloudbuild-frontend.yaml not found!"
+        print_error "Make sure you're running this script from the project root directory."
+        exit 1
+    fi
+    
+    print_status "Submitting frontend build to Cloud Build..."
+    print_status "Using git SHA: $GIT_SHORT_SHA"
+    gcloud builds submit \
+        --config=microservices_deploy/cloudbuild-frontend.yaml \
+        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION",SHORT_SHA="$GIT_SHORT_SHA" \
+        --project="$PROJECT_ID" \
+        --timeout=15m \
+        .
+    
+    print_success "Frontend image built successfully ✅"
+    print_status "Frontend image: gcr.io/$PROJECT_ID/metamcp-frontend:$GIT_SHORT_SHA"
+    echo ""
+}
+
+# Function to build both images (for backward compatibility)
+build_images() {
+    print_status "Building all container images using Cloud Build..."
+    build_backend_image
+    build_frontend_image
+    print_success "All images built successfully ✅"
+}

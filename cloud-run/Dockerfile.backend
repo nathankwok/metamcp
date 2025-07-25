@@ -7,16 +7,14 @@ FROM ghcr.io/metatool-ai/metamcp:latest AS base
 # Cloud Run specific stage
 FROM base AS cloud-run-backend
 
+# Ensure we're running as root for system installations
+USER root
+
 # Cloud Run environment setup
 ENV PORT=8080
 ENV NODE_ENV=production
 
-# Install Cloud SQL Proxy (optional - for private IP connections)
-RUN curl -o /usr/local/bin/cloud_sql_proxy https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 && \
-    chmod +x /usr/local/bin/cloud_sql_proxy
-
 # Create a non-root user if not exists
-USER root
 RUN id -u nextjs &>/dev/null || useradd -r -d /app -s /bin/bash nextjs
 
 # Install additional dependencies for MCP server management
@@ -29,8 +27,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy Cloud Run specific entrypoint script
 COPY cloud-run/backend-entrypoint.sh /app/
-RUN chmod +x /app/backend-entrypoint.sh && \
-    chown nextjs:nextjs /app/backend-entrypoint.sh
+RUN chmod +x /app/backend-entrypoint.sh
 
 # Switch to non-root user
 USER nextjs

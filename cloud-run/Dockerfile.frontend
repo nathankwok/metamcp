@@ -18,8 +18,7 @@ RUN id -u nextjs &>/dev/null || useradd -r -d /app -s /bin/bash nextjs
 
 # Copy Cloud Run specific entrypoint script
 COPY cloud-run/frontend-entrypoint.sh /app/
-RUN chmod +x /app/frontend-entrypoint.sh && \
-    chown nextjs:nextjs /app/frontend-entrypoint.sh
+RUN chmod +x /app/frontend-entrypoint.sh
 
 # Switch to non-root user
 USER nextjs

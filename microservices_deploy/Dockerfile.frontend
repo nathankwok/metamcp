@@ -8,7 +8,7 @@ FROM ghcr.io/metatool-ai/metamcp:latest AS base
 FROM base AS cloud-run-frontend
 
 # Cloud Run environment setup
-ENV PORT=8080
+ENV PORT=12008
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_VERCEL_URL=""
 
@@ -28,11 +28,11 @@ RUN chmod +x /app/frontend-entrypoint.sh
 USER nextjs
 
 # Expose Cloud Run port
-EXPOSE 8080
+EXPOSE 12008
 
 # Health check endpoint for Cloud Run
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8080/api/health || exit 1
+  CMD curl -f http://localhost:12008/api/health || exit 1
 
 # Use Cloud Run specific entrypoint - Run node directly
 WORKDIR /app/apps/frontend

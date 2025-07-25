@@ -235,7 +235,7 @@ deploy_backend() {
         --max-instances=5 \
         --concurrency=50 \
         --timeout=300 \
-        --port=8080 \
+        --port=12009 \
         --allow-unauthenticated \
         --quiet
     
@@ -279,7 +279,7 @@ deploy_frontend() {
         --max-instances=5 \
         --concurrency=100 \
         --timeout=300 \
-        --port=8080 \
+        --port=12008 \
         --allow-unauthenticated \
         --quiet
     
@@ -308,7 +308,7 @@ deploy_frontend() {
         --max-instances=5 \
         --concurrency=100 \
         --timeout=300 \
-        --port=8080 \
+        --port=12008 \
         --allow-unauthenticated \
         --quiet
     
@@ -328,7 +328,7 @@ deploy_frontend() {
         --max-instances=5 \
         --concurrency=50 \
         --timeout=300 \
-        --port=8080 \
+        --port=12009 \
         --allow-unauthenticated \
         --quiet
     

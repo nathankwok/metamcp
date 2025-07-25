@@ -4,7 +4,7 @@ set -e
 echo "🚀 Starting MetaMCP Backend for Cloud Run..."
 
 # Set Cloud Run specific environment variables
-export PORT=${PORT:-8080}
+export PORT=${PORT:-12009}
 export NODE_ENV=${NODE_ENV:-production}
 
 # Log startup information

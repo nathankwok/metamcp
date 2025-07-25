@@ -78,7 +78,7 @@ app.use("/mcp-proxy", mcpProxyRouter);
 // Mount tRPC routes
 app.use("/trpc", trpcRouter);
 
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 12009;
 const baseUrl = process.env.APP_URL || `http://localhost:${port}`;
 
 app.listen(port, async () => {

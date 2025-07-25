@@ -211,7 +211,7 @@ deploy_backend() {
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production,PORT=8080" \
+        --set-env-vars="NODE_ENV=production,PORT=8080,APP_URL=$BACKEND_URL,FRONTEND_URL=$FRONTEND_URL" \
         --set-secrets="DATABASE_URL=metamcp-database-url-production:latest,BETTER_AUTH_SECRET=metamcp-better-auth-secret-production:latest" \
         --memory=1Gi \
         --cpu=1000m \
@@ -256,7 +256,7 @@ deploy_frontend() {
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production,PORT=8080,NEXT_PUBLIC_BACKEND_URL=$BACKEND_URL" \
+        --set-env-vars="NODE_ENV=production,PORT=8080,NEXT_PUBLIC_API_URL=$BACKEND_URL" \
         --memory=512Mi \
         --cpu=1000m \
         --min-instances=0 \
@@ -277,6 +277,44 @@ deploy_frontend() {
         print_error "Failed to get frontend service URL"
         exit 1
     fi
+    
+    # Update frontend with its own URL for domain validation
+    print_status "Updating frontend with domain validation URL..."
+    gcloud run deploy "$FRONTEND_SERVICE" \
+        --image="$frontend_image" \
+        --region="$REGION" \
+        --project="$PROJECT_ID" \
+        --platform=managed \
+        --set-env-vars="NODE_ENV=production,PORT=8080,NEXT_PUBLIC_APP_URL=$FRONTEND_URL,NEXT_PUBLIC_API_URL=$BACKEND_URL" \
+        --memory=512Mi \
+        --cpu=1000m \
+        --min-instances=0 \
+        --max-instances=5 \
+        --concurrency=100 \
+        --timeout=300 \
+        --port=8080 \
+        --allow-unauthenticated \
+        --quiet
+    
+    # Update backend with frontend URL for CORS
+    print_status "Updating backend with frontend URL for CORS..."
+    local backend_image="gcr.io/$PROJECT_ID/metamcp-backend:latest"
+    gcloud run deploy "$BACKEND_SERVICE" \
+        --image="$backend_image" \
+        --region="$REGION" \
+        --project="$PROJECT_ID" \
+        --platform=managed \
+        --set-env-vars="NODE_ENV=production,PORT=8080,APP_URL=$BACKEND_URL,FRONTEND_URL=$FRONTEND_URL" \
+        --set-secrets="DATABASE_URL=metamcp-database-url-production:latest,BETTER_AUTH_SECRET=metamcp-better-auth-secret-production:latest" \
+        --memory=1Gi \
+        --cpu=1000m \
+        --min-instances=0 \
+        --max-instances=5 \
+        --concurrency=50 \
+        --timeout=300 \
+        --port=8080 \
+        --allow-unauthenticated \
+        --quiet
     
     print_success "Frontend deployed successfully ✅"
     print_status "Frontend URL: $FRONTEND_URL"

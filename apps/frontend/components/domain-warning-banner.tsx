@@ -24,6 +24,7 @@ export function DomainWarningBanner({
       const currentOrigin = window.location.origin;
       const configuredOrigin = new URL(configuredAppUrl).origin;
 
+      // Domain validation should pass if we're on the correct frontend domain
       if (currentOrigin !== configuredOrigin) {
         setShowDomainWarning(true);
         setDomainInfo({

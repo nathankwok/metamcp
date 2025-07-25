@@ -41,7 +41,7 @@ import { z } from "zod";
 import { SESSION_KEYS } from "@/lib/constants";
 
 import { ConnectionStatus } from "../lib/constants";
-import { getAppUrl } from "../lib/env";
+import { getApiUrl } from "../lib/env";
 import {
   Notification,
   StdErrNotificationSchema,
@@ -239,7 +239,7 @@ export function useConnection({
 
   const checkProxyHealth = useMemoizedFn(async () => {
     try {
-      const proxyHealthUrl = new URL(`/mcp-proxy/server/health`, getAppUrl());
+      const proxyHealthUrl = new URL(`/mcp-proxy/server/health`, getApiUrl());
 
       // Cookies will be sent automatically by the browser
       const proxyHealthResponse = await fetch(proxyHealthUrl, {
@@ -356,7 +356,7 @@ export function useConnection({
         // Handle MetaMCP connections
         if (isMetaMCP) {
           // For MetaMCP, we use SSE connection to the metamcp proxy endpoint
-          mcpProxyServerUrl = new URL(url, getAppUrl());
+          mcpProxyServerUrl = new URL(url, getApiUrl());
           // Add includeInactiveServers as a query parameter
           if (includeInactiveServers) {
             mcpProxyServerUrl.searchParams.append(
@@ -386,7 +386,7 @@ export function useConnection({
             case McpServerTypeEnum.Enum.STDIO:
               mcpProxyServerUrl = new URL(
                 `/mcp-proxy/server/stdio`,
-                getAppUrl(),
+                getApiUrl(),
               );
               mcpProxyServerUrl.searchParams.append("command", command);
               mcpProxyServerUrl.searchParams.append("args", args);
@@ -412,7 +412,7 @@ export function useConnection({
               break;
 
             case McpServerTypeEnum.Enum.SSE:
-              mcpProxyServerUrl = new URL(`/mcp-proxy/server/sse`, getAppUrl());
+              mcpProxyServerUrl = new URL(`/mcp-proxy/server/sse`, getApiUrl());
               mcpProxyServerUrl.searchParams.append("url", url);
               transportOptions = {
                 eventSourceInit: {
@@ -434,7 +434,7 @@ export function useConnection({
               break;
 
             case McpServerTypeEnum.Enum.STREAMABLE_HTTP:
-              mcpProxyServerUrl = new URL(`/mcp-proxy/server/mcp`, getAppUrl());
+              mcpProxyServerUrl = new URL(`/mcp-proxy/server/mcp`, getApiUrl());
               mcpProxyServerUrl.searchParams.append("url", url);
               transportOptions = {
                 eventSourceInit: {

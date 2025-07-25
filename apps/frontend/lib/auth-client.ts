@@ -1,9 +1,9 @@
 import { genericOAuthClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
-import { getAppUrl } from "./env";
+import { getApiUrl } from "./env";
 
 export const authClient = createAuthClient({
-  baseURL: getAppUrl(),
+  baseURL: getApiUrl(),
   plugins: [genericOAuthClient()],
 }) as ReturnType<typeof createAuthClient>;

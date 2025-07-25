@@ -7,3 +7,12 @@ export const getAppUrl = () => {
   }
   return NEXT_PUBLIC_APP_URL;
 };
+
+export const getApiUrl = () => {
+  const NEXT_PUBLIC_API_URL = env("NEXT_PUBLIC_API_URL");
+  if (!NEXT_PUBLIC_API_URL) {
+    // Fallback to APP_URL for backwards compatibility
+    return getAppUrl();
+  }
+  return NEXT_PUBLIC_API_URL;
+};

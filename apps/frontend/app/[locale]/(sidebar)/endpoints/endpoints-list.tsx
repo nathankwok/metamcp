@@ -50,7 +50,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTranslations } from "@/hooks/useTranslations";
-import { getAppUrl } from "@/lib/env";
+import { getApiUrl } from "@/lib/env";
 import { trpc } from "@/lib/trpc";
 
 interface EndpointsListProps {
@@ -146,15 +146,15 @@ export function EndpointsList({ onRefresh }: EndpointsListProps) {
           <div className="space-y-1 px-3 py-2">
             <div className="font-medium">{endpoint.name}</div>
             <div className="text-xs text-muted-foreground">
-              SSE: {getAppUrl()}/metamcp/{endpoint.name}/sse
+              SSE: {getApiUrl()}/metamcp/{endpoint.name}/sse
               <br />
-              Streamable HTTP: {getAppUrl()}/metamcp/
+              Streamable HTTP: {getApiUrl()}/metamcp/
               {endpoint.name}
               /mcp
               <br />
-              OpenAPI: {getAppUrl()}/metamcp/{endpoint.name}/api
+              OpenAPI: {getApiUrl()}/metamcp/{endpoint.name}/api
               <br />
-              Schema: {getAppUrl()}/metamcp/{endpoint.name}/api/openapi.json
+              Schema: {getApiUrl()}/metamcp/{endpoint.name}/api/openapi.json
             </div>
           </div>
         );
@@ -246,25 +246,25 @@ export function EndpointsList({ onRefresh }: EndpointsListProps) {
         const endpoint = row.original;
 
         const copyFullSseUrl = () => {
-          const baseUrl = `${getAppUrl()}/metamcp/${endpoint.name}/sse`;
+          const baseUrl = `${getApiUrl()}/metamcp/${endpoint.name}/sse`;
           navigator.clipboard.writeText(baseUrl);
           toast.success(t("endpoints:list.sseUrlCopied"));
         };
 
         const copyFullShttpUrl = () => {
-          const baseUrl = `${getAppUrl()}/metamcp/${endpoint.name}/mcp`;
+          const baseUrl = `${getApiUrl()}/metamcp/${endpoint.name}/mcp`;
           navigator.clipboard.writeText(baseUrl);
           toast.success(t("endpoints:list.shttpUrlCopied"));
         };
 
         const copyFullApiUrl = () => {
-          const baseUrl = `${getAppUrl()}/metamcp/${endpoint.name}/api`;
+          const baseUrl = `${getApiUrl()}/metamcp/${endpoint.name}/api`;
           navigator.clipboard.writeText(baseUrl);
           toast.success(t("endpoints:list.openApiUrlCopied"));
         };
 
         const copyFullOpenApiSchemaUrl = () => {
-          const baseUrl = `${getAppUrl()}/metamcp/${endpoint.name}/api/openapi.json`;
+          const baseUrl = `${getApiUrl()}/metamcp/${endpoint.name}/api/openapi.json`;
           navigator.clipboard.writeText(baseUrl);
           toast.success(t("endpoints:list.openApiSchemaUrlCopied"));
         };
@@ -277,28 +277,28 @@ export function EndpointsList({ onRefresh }: EndpointsListProps) {
 
         const copyFullSseUrlWithApiKey = () => {
           const apiKey = getApiKey();
-          const baseUrl = `${getAppUrl()}/metamcp/${endpoint.name}/sse?api_key=${apiKey}`;
+          const baseUrl = `${getApiUrl()}/metamcp/${endpoint.name}/sse?api_key=${apiKey}`;
           navigator.clipboard.writeText(baseUrl);
           toast.success(t("endpoints:list.sseUrlWithApiKeyCopied"));
         };
 
         const copyFullShttpUrlWithApiKey = () => {
           const apiKey = getApiKey();
-          const baseUrl = `${getAppUrl()}/metamcp/${endpoint.name}/mcp?api_key=${apiKey}`;
+          const baseUrl = `${getApiUrl()}/metamcp/${endpoint.name}/mcp?api_key=${apiKey}`;
           navigator.clipboard.writeText(baseUrl);
           toast.success(t("endpoints:list.shttpUrlWithApiKeyCopied"));
         };
 
         const copyFullApiUrlWithApiKey = () => {
           const apiKey = getApiKey();
-          const baseUrl = `${getAppUrl()}/metamcp/${endpoint.name}/api?api_key=${apiKey}`;
+          const baseUrl = `${getApiUrl()}/metamcp/${endpoint.name}/api?api_key=${apiKey}`;
           navigator.clipboard.writeText(baseUrl);
           toast.success(t("endpoints:list.openApiUrlWithApiKeyCopied"));
         };
 
         const copyFullOpenApiSchemaUrlWithApiKey = () => {
           const apiKey = getApiKey();
-          const baseUrl = `${getAppUrl()}/metamcp/${endpoint.name}/api/openapi.json?api_key=${apiKey}`;
+          const baseUrl = `${getApiUrl()}/metamcp/${endpoint.name}/api/openapi.json?api_key=${apiKey}`;
           navigator.clipboard.writeText(baseUrl);
           toast.success(t("endpoints:list.openApiSchemaUrlWithApiKeyCopied"));
         };

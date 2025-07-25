@@ -57,6 +57,7 @@ export const auth = betterAuth({
     "http://0.0.0.0",
     "http://0.0.0.0:3000",
     "http://0.0.0.0:12008",
+    ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
   ],
   plugins: [
     // Add generic OAuth plugin for OIDC support

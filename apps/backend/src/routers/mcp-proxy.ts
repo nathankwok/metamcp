@@ -11,7 +11,7 @@ const mcpProxyRouter = express.Router();
 mcpProxyRouter.use(helmet());
 mcpProxyRouter.use(
   cors({
-    origin: [process.env.APP_URL, process.env.FRONTEND_URL].filter(Boolean),
+    origin: true, // Allow all origins
     credentials: true,
     allowedHeaders: [
       "Content-Type",

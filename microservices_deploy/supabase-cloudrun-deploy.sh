@@ -227,7 +227,7 @@ deploy_backend() {
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production,APP_URL=$BACKEND_URL,FRONTEND_URL=$FRONTEND_URL" \
+        --set-env-vars="NODE_ENV=production" \
         --set-secrets="DATABASE_URL=metamcp-database-url-production:latest,BETTER_AUTH_SECRET=metamcp-better-auth-secret-production:latest" \
         --memory=1Gi \
         --cpu=1000m \
@@ -266,36 +266,18 @@ deploy_frontend() {
     
     local frontend_image="gcr.io/$PROJECT_ID/metamcp-frontend:$GIT_SHORT_SHA"
     
-    print_status "Deploying $FRONTEND_SERVICE with image: $frontend_image..."
-    gcloud run deploy "$FRONTEND_SERVICE" \
-        --image="$frontend_image" \
-        --region="$REGION" \
-        --project="$PROJECT_ID" \
-        --platform=managed \
-        --set-env-vars="NODE_ENV=production,NEXT_PUBLIC_API_URL=$BACKEND_URL" \
-        --memory=512Mi \
-        --cpu=1000m \
-        --min-instances=0 \
-        --max-instances=5 \
-        --concurrency=100 \
-        --timeout=300 \
-        --port=12008 \
-        --allow-unauthenticated \
-        --quiet
-    
-    # Get frontend URL
+    # Get frontend URL first (in case service already exists)
     FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
         --region="$REGION" \
         --project="$PROJECT_ID" \
-        --format='value(status.url)')
+        --format='value(status.url)' 2>/dev/null || echo "")
     
+    # If no existing service, we'll get the URL after deployment
     if [[ -z "$FRONTEND_URL" ]]; then
-        print_error "Failed to get frontend service URL"
-        exit 1
+        FRONTEND_URL="https://$FRONTEND_SERVICE-$PROJECT_ID.${REGION}.run.app"
     fi
     
-    # Update frontend with its own URL for domain validation
-    print_status "Updating frontend with domain validation URL..."
+    print_status "Deploying $FRONTEND_SERVICE with image: $frontend_image..."
     gcloud run deploy "$FRONTEND_SERVICE" \
         --image="$frontend_image" \
         --region="$REGION" \
@@ -312,25 +294,16 @@ deploy_frontend() {
         --allow-unauthenticated \
         --quiet
     
-    # Update backend with frontend URL for CORS
-    print_status "Updating backend with frontend URL for CORS..."
-    local backend_image="gcr.io/$PROJECT_ID/metamcp-backend:$GIT_SHORT_SHA"
-    gcloud run deploy "$BACKEND_SERVICE" \
-        --image="$backend_image" \
+    # Get the actual frontend URL after deployment
+    FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
         --region="$REGION" \
         --project="$PROJECT_ID" \
-        --platform=managed \
-        --set-env-vars="NODE_ENV=production,APP_URL=$BACKEND_URL,FRONTEND_URL=$FRONTEND_URL" \
-        --set-secrets="DATABASE_URL=metamcp-database-url-production:latest,BETTER_AUTH_SECRET=metamcp-better-auth-secret-production:latest" \
-        --memory=1Gi \
-        --cpu=1000m \
-        --min-instances=0 \
-        --max-instances=5 \
-        --concurrency=50 \
-        --timeout=300 \
-        --port=12009 \
-        --allow-unauthenticated \
-        --quiet
+        --format='value(status.url)')
+    
+    if [[ -z "$FRONTEND_URL" ]]; then
+        print_error "Failed to get frontend service URL"
+        exit 1
+    fi
     
     print_success "Frontend deployed successfully ✅"
     print_status "Frontend URL: $FRONTEND_URL"

@@ -3,7 +3,8 @@ const nextConfig = {
   output: "standalone",
   async rewrites() {
     // Use localhost for rewrites since frontend and backend run in the same container
-    const backendUrl = "http://localhost:12009";
+    // const backendUrl = "http://localhost:12009";
+    const backendUrl = "https://metamcp-backend-555166161772.us-central1.run.app"
 
     return [
       {

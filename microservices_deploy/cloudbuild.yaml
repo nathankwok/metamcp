@@ -7,8 +7,9 @@ steps:
     id: 'build-backend'
     args:
       - 'build'
-      - '--file=cloud-run/Dockerfile.backend'
+      - '--file=microservices_deploy/Dockerfile.backend'
       - '--tag=gcr.io/$PROJECT_ID/metamcp-backend:latest'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-backend:$SHORT_SHA'
       - '.'
     timeout: '1200s'
 
@@ -17,8 +18,9 @@ steps:
     id: 'build-frontend'
     args:
       - 'build'
-      - '--file=cloud-run/Dockerfile.frontend'
+      - '--file=microservices_deploy/Dockerfile.frontend'
       - '--tag=gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-frontend:$SHORT_SHA'
       - '.'
     timeout: '1200s'
 
@@ -27,7 +29,8 @@ steps:
     id: 'push-backend'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/metamcp-backend:latest'
+      - '--all-tags'
+      - 'gcr.io/$PROJECT_ID/metamcp-backend'
     waitFor: ['build-backend']
 
   # Push frontend image
@@ -35,28 +38,16 @@ steps:
     id: 'push-frontend'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/metamcp-frontend:latest'
-    waitFor: ['build-frontend']
-
-  # Push latest tags
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-backend-latest'
-    args:
-      - 'push'
-      - 'gcr.io/$PROJECT_ID/metamcp-backend:latest'
-    waitFor: ['build-backend']
-
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-frontend-latest'
-    args:
-      - 'push'
-      - 'gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+      - '--all-tags'
+      - 'gcr.io/$PROJECT_ID/metamcp-frontend'
     waitFor: ['build-frontend']
 
 # Images to be pushed to Container Registry
 images:
   - 'gcr.io/$PROJECT_ID/metamcp-backend:latest'
+  - 'gcr.io/$PROJECT_ID/metamcp-backend:$SHORT_SHA'
   - 'gcr.io/$PROJECT_ID/metamcp-frontend:latest'
+  - 'gcr.io/$PROJECT_ID/metamcp-frontend:$SHORT_SHA'
 
 # Build options
 options:

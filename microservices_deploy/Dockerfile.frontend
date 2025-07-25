@@ -21,7 +21,7 @@ RUN mkdir -p /app/.next && chmod -R 755 /app/.next
 RUN mkdir -p /app/apps/frontend/.next && chmod -R 755 /app/apps/frontend/.next
 
 # Copy Cloud Run specific entrypoint script
-COPY cloud-run/frontend-entrypoint.sh /app/
+COPY microservices_deploy/frontend-entrypoint.sh /app/
 RUN chmod +x /app/frontend-entrypoint.sh
 
 # Switch to non-root user

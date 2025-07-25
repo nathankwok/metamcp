@@ -28,6 +28,9 @@ SUPABASE_CONNECTION_STRING=${SUPABASE_CONNECTION_STRING:-""}
 FRONTEND_SERVICE="metamcp-frontend"
 BACKEND_SERVICE="metamcp-backend"
 
+# Get git commit SHA
+GIT_SHORT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
 print_header "🚀 MetaMCP Supabase + Cloud Run Deployment"
 print_header "=========================================="
 echo ""
@@ -47,6 +50,17 @@ check_prerequisites() {
     if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | grep -q .; then
         print_error "No active gcloud authentication found."
         print_error "Please run: gcloud auth login"
+        exit 1
+    fi
+    
+    # Check if git is available and we're in a git repository
+    if ! command -v git &> /dev/null; then
+        print_error "git is not installed. Please install it first."
+        exit 1
+    fi
+    
+    if ! git rev-parse --git-dir &> /dev/null; then
+        print_error "Not in a git repository. Please run this script from the project root."
         exit 1
     fi
     
@@ -119,6 +133,7 @@ load_configuration() {
     print_status "Project ID: $PROJECT_ID"
     print_status "Region: $REGION"
     print_status "Environment: $ENVIRONMENT"
+    print_status "Git SHA: $GIT_SHORT_SHA"
     print_status "Database: Supabase (${SUPABASE_CONNECTION_STRING%%@*}@***)"
     echo ""
 }
@@ -151,8 +166,8 @@ create_secrets() {
     print_status "Creating/updating database connection secret..."
     if gcloud secrets describe metamcp-database-url-production --project="$PROJECT_ID" &>/dev/null; then
         print_status "Secret exists, adding new version..."
-        echo "$SUPABASE_CONNECTION_STRING" | gcloud secrets versions add metamcp-database-url-production \
-            --data-file=- --project="$PROJECT_ID"
+#        echo "$SUPABASE_CONNECTION_STRING" | gcloud secrets versions add metamcp-database-url-production \
+#            --data-file=- --project="$PROJECT_ID"
     else
         print_status "Creating new secret..."
         echo "$SUPABASE_CONNECTION_STRING" | gcloud secrets create metamcp-database-url-production \
@@ -181,16 +196,17 @@ build_images() {
     print_status "Building container images using Cloud Build..."
     
     # Check if cloudbuild.yaml exists
-    if [[ ! -f "cloud-run/cloudbuild.yaml" ]]; then
-        print_error "cloud-run/cloudbuild.yaml not found!"
+    if [[ ! -f "microservices_deploy/cloudbuild.yaml" ]]; then
+        print_error "microservices_deploy/cloudbuild.yaml not found!"
         print_error "Make sure you're running this script from the project root directory."
         exit 1
     fi
     
     print_status "Submitting build to Cloud Build..."
+    print_status "Using git SHA: $GIT_SHORT_SHA"
     gcloud builds submit \
-        --config=cloud-run/cloudbuild.yaml \
-        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION" \
+        --config=microservices_deploy/cloudbuild.yaml \
+        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION",SHORT_SHA="$GIT_SHORT_SHA" \
         --project="$PROJECT_ID" \
         --timeout=20m \
         .
@@ -203,15 +219,15 @@ build_images() {
 deploy_backend() {
     print_status "Deploying backend service (optimized for free tier)..."
     
-    local backend_image="gcr.io/$PROJECT_ID/metamcp-backend:latest"
+    local backend_image="gcr.io/$PROJECT_ID/metamcp-backend:$GIT_SHORT_SHA"
     
-    print_status "Deploying $BACKEND_SERVICE..."
+    print_status "Deploying $BACKEND_SERVICE with image: $backend_image..."
     gcloud run deploy "$BACKEND_SERVICE" \
         --image="$backend_image" \
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production,PORT=8080,APP_URL=$BACKEND_URL,FRONTEND_URL=$FRONTEND_URL" \
+        --set-env-vars="NODE_ENV=production,APP_URL=$BACKEND_URL,FRONTEND_URL=$FRONTEND_URL" \
         --set-secrets="DATABASE_URL=metamcp-database-url-production:latest,BETTER_AUTH_SECRET=metamcp-better-auth-secret-production:latest" \
         --memory=1Gi \
         --cpu=1000m \
@@ -248,15 +264,15 @@ deploy_frontend() {
         exit 1
     fi
     
-    local frontend_image="gcr.io/$PROJECT_ID/metamcp-frontend:latest"
+    local frontend_image="gcr.io/$PROJECT_ID/metamcp-frontend:$GIT_SHORT_SHA"
     
-    print_status "Deploying $FRONTEND_SERVICE..."
+    print_status "Deploying $FRONTEND_SERVICE with image: $frontend_image..."
     gcloud run deploy "$FRONTEND_SERVICE" \
         --image="$frontend_image" \
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production,PORT=8080,NEXT_PUBLIC_API_URL=$BACKEND_URL" \
+        --set-env-vars="NODE_ENV=production,NEXT_PUBLIC_API_URL=$BACKEND_URL" \
         --memory=512Mi \
         --cpu=1000m \
         --min-instances=0 \
@@ -285,7 +301,7 @@ deploy_frontend() {
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production,PORT=8080,NEXT_PUBLIC_APP_URL=$FRONTEND_URL,NEXT_PUBLIC_API_URL=$BACKEND_URL" \
+        --set-env-vars="NODE_ENV=production,NEXT_PUBLIC_APP_URL=$FRONTEND_URL,NEXT_PUBLIC_API_URL=$BACKEND_URL" \
         --memory=512Mi \
         --cpu=1000m \
         --min-instances=0 \
@@ -298,13 +314,13 @@ deploy_frontend() {
     
     # Update backend with frontend URL for CORS
     print_status "Updating backend with frontend URL for CORS..."
-    local backend_image="gcr.io/$PROJECT_ID/metamcp-backend:latest"
+    local backend_image="gcr.io/$PROJECT_ID/metamcp-backend:$GIT_SHORT_SHA"
     gcloud run deploy "$BACKEND_SERVICE" \
         --image="$backend_image" \
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production,PORT=8080,APP_URL=$BACKEND_URL,FRONTEND_URL=$FRONTEND_URL" \
+        --set-env-vars="NODE_ENV=production,APP_URL=$BACKEND_URL,FRONTEND_URL=$FRONTEND_URL" \
         --set-secrets="DATABASE_URL=metamcp-database-url-production:latest,BETTER_AUTH_SECRET=metamcp-better-auth-secret-production:latest" \
         --memory=1Gi \
         --cpu=1000m \
@@ -450,8 +466,8 @@ case "${1:-}" in
     "test")
         print_status "Testing deployment..."
         load_configuration
-        BACKEND_URL=$(gcloud run services describe "$BACKEND_SERVICE" --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)')
-        FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)')
+#        BACKEND_URL=$(gcloud run services describe "$BACKEND_SERVICE" --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)')
+#        FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)')
         test_deployment
         ;;
     "help" | "-h" | "--help")

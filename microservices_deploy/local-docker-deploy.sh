@@ -156,7 +156,6 @@ load_configuration() {
     print_status "Region: $REGION"
     print_status "Environment: $ENVIRONMENT"
     print_status "Git SHA: $GIT_SHORT_SHA"
-    print_status "Database: Supabase (${SUPABASE_CONNECTION_STRING%%@*}@***)"
     echo ""
 }
 
@@ -288,14 +287,13 @@ build_backend_image() {
     print_status "Building backend image: $backend_image"
     docker build \
         --file=microservices_deploy/Dockerfile.backend \
-        --build-arg APP_URL="$BACKEND_URL" \
         --tag="$backend_latest" \
         --tag="$backend_image" \
         .
     
-#    print_status "Pushing backend image to Google Container Registry..."
-#    docker push "$backend_image"
-#    docker push "$backend_latest"
+    print_status "Pushing backend image to Google Container Registry..."
+    docker push "$backend_image"
+    docker push "$backend_latest"
     
     print_success "Backend image built and pushed successfully ✅"
     print_status "Backend image: $backend_image"
@@ -346,25 +344,26 @@ deploy_backend() {
     
     local backend_image="gcr.io/$PROJECT_ID/$BACKEND_SERVICE:$GIT_SHORT_SHA"
     
-    # Get frontend URL first (needed for APP_URL environment variable)
-    local frontend_url=$(gcloud run services describe "$FRONTEND_SERVICE" \
-        --region="$REGION" \
-        --project="$PROJECT_ID" \
-        --format='value(status.url)' 2>/dev/null || echo "https://$FRONTEND_SERVICE-$PROJECT_ID.${REGION}.run.app")
+#    # Get frontend URL first (needed for APP_URL environment variable)
+#    local frontend_url=$(gcloud run services describe "$FRONTEND_SERVICE" \
+#        --region="$REGION" \
+#        --project="$PROJECT_ID" \
+#        --format='value(status.url)' 2>/dev/null || echo "https://$FRONTEND_SERVICE-$PROJECT_ID.${REGION}.run.app")
     
     print_status "Deploying $BACKEND_SERVICE with image: $backend_image..."
-    print_status "Using frontend URL for APP_URL: $frontend_url"
+#    print_status "Using frontend URL for APP_URL: $frontend_url"
+    print_status "Using backend URL for APP_URL: $BACKEND_URL"
     gcloud run deploy "$BACKEND_SERVICE" \
         --image="$backend_image" \
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production,APP_URL=$frontend_url" \
+        --set-env-vars="NODE_ENV=production,APP_URL=$BACKEND_URL" \
         --set-secrets="DATABASE_URL=metamcp-database-url-production:latest,BETTER_AUTH_SECRET=metamcp-better-auth-secret-production:latest" \
         --memory=1Gi \
         --cpu=1000m \
         --min-instances=0 \
-        --max-instances=5 \
+        --max-instances=1 \
         --concurrency=50 \
         --timeout=300 \
         --port=12009 \
@@ -524,7 +523,7 @@ main() {
     load_configuration
     enable_apis
     create_secrets
-    run_migrations
+#    run_migrations
     build_backend_image
     build_frontend_image
     deploy_backend
@@ -541,7 +540,7 @@ case "${1:-}" in
         load_configuration
         enable_apis
         create_secrets
-        run_migrations
+#        run_migrations
         build_backend_image
         deploy_backend
         print_success "Backend deployment completed!"
@@ -575,6 +574,20 @@ case "${1:-}" in
         load_configuration
         build_frontend_image
         print_success "Frontend build completed!"
+        ;;
+    "deploy-backend")
+        print_status "Deploying backend service only..."
+        check_prerequisites
+        load_configuration
+        deploy_backend
+        print_success "Deploy backend completed!"
+        ;;
+    "deploy-frontend")
+        print_status "Deploying frontend service only..."
+        check_prerequisites
+        load_configuration
+        deploy_frontend
+        print_success "Deploy frontend completed!"
         ;;
     "secrets")
         print_status "Creating secrets only..."

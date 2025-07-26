@@ -85,10 +85,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/pnpm-workspace.yaml ./
 # Install production dependencies only
 RUN pnpm install --prod
 
-# Copy frontend entrypoint script
-COPY --chown=nextjs:nodejs microservices_deploy/frontend-entrypoint.sh ./
-RUN chmod +x frontend-entrypoint.sh
-
 USER nextjs
 
 # Expose frontend port
@@ -98,5 +94,6 @@ EXPOSE 12008
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:12008/health || exit 1
 
-# Use frontend entrypoint script
-CMD ["./frontend-entrypoint.sh"]
+# Start frontend server
+WORKDIR /app/apps/frontend
+CMD ["pnpm", "start"]

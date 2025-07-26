@@ -89,6 +89,10 @@ RUN pnpm install --prod
 # Install drizzle-kit locally in backend for migrations
 RUN cd apps/backend && pnpm add drizzle-kit@0.31.1
 
+# Copy backend entrypoint script
+COPY --chown=nextjs:nodejs microservices_deploy/backend-entrypoint.sh ./
+RUN chmod +x backend-entrypoint.sh
+
 USER nextjs
 
 # Expose backend port
@@ -98,6 +102,5 @@ EXPOSE 12009
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:12009/health || exit 1
 
-# Start backend server
-WORKDIR /app/apps/backend
-CMD ["node", "dist/index.js"]
+# Use backend entrypoint script
+CMD ["./backend-entrypoint.sh"]

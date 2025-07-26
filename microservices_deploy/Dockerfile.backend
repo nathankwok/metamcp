@@ -1,44 +1,103 @@
-# Cloud Run Backend Dockerfile
-# Based on the main Dockerfile but optimized for Cloud Run deployment
+# Backend-only Dockerfile
+# Use the official uv image as base
+FROM ghcr.io/astral-sh/uv:debian AS base
 
-# Use the existing Dockerfile as base build
-FROM ghcr.io/metatool-ai/metamcp:latest AS base
-
-# Cloud Run specific stage
-FROM base AS cloud-run-backend
-
-# Ensure we're running as root for system installations
-USER root
-
-# Cloud Run environment setup
-ENV PORT=12009
-ENV NODE_ENV=production
-
-# Create a non-root user if not exists
-RUN id -u nextjs &>/dev/null || useradd -r -d /app -s /bin/bash nextjs
-
-# Install additional dependencies for MCP server management
+# Install Node.js and pnpm directly
 RUN apt-get update && apt-get install -y \
     curl \
-    wget \
-    python3 \
-    python3-pip \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g pnpm@10.12.0 \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Cloud Run specific entrypoint script
-COPY microservices_deploy/backend-entrypoint.sh /app/
-RUN chmod +x /app/backend-entrypoint.sh
+# Install dependencies only when needed
+FROM base AS deps
+WORKDIR /app
 
-# Switch to non-root user
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# Copy root package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY turbo.json ./
+
+# Copy package.json files from all workspaces
+COPY apps/frontend/package.json ./apps/frontend/
+COPY apps/backend/package.json ./apps/backend/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
+COPY packages/trpc/package.json ./packages/trpc/
+COPY packages/typescript-config/package.json ./packages/typescript-config/
+COPY packages/zod-types/package.json ./packages/zod-types/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Builder stage
+FROM base AS builder
+WORKDIR /app
+
+# Copy node_modules from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/frontend/node_modules ./apps/frontend/node_modules
+COPY --from=deps /app/apps/backend/node_modules ./apps/backend/node_modules
+COPY --from=deps /app/packages ./packages
+
+# Copy source code
+COPY . .
+
+# Build all packages and apps
+RUN pnpm build
+
+# Production runner stage
+FROM base AS runner
+WORKDIR /app
+
+ENV APP_URL=https://metamcp-frontend-pbxnxwryca-uc.a.run.app
+
+# OCI image labels
+LABEL org.opencontainers.image.source="https://github.com/metatool-ai/metamcp"
+LABEL org.opencontainers.image.description="MetaMCP Backend - aggregates MCP servers into a unified MetaMCP"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.title="MetaMCP Backend"
+LABEL org.opencontainers.image.vendor="metatool-ai"
+
+# Install curl for health checks and postgresql-client for migrations
+RUN apt-get update && apt-get install -y curl postgresql-client && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user with proper home directory
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 --home /home/nextjs nextjs && \
+    mkdir -p /home/nextjs/.cache/node/corepack && \
+    chown -R nextjs:nodejs /home/nextjs
+
+# Copy built backend application
+COPY --from=builder --chown=nextjs:nodejs /app/apps/backend/dist ./apps/backend/dist
+COPY --from=builder --chown=nextjs:nodejs /app/apps/backend/package.json ./apps/backend/
+COPY --from=builder --chown=nextjs:nodejs /app/apps/backend/drizzle ./apps/backend/drizzle
+COPY --from=builder --chown=nextjs:nodejs /app/apps/backend/drizzle.config.ts ./apps/backend/
+
+# Copy built packages
+COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
+COPY --from=builder --chown=nextjs:nodejs /app/pnpm-workspace.yaml ./
+
+# Install production dependencies only
+RUN pnpm install --prod
+
+# Install drizzle-kit locally in backend for migrations
+RUN cd apps/backend && pnpm add drizzle-kit@0.31.1
+
 USER nextjs
 
-# Expose Cloud Run port
+# Expose backend port
 EXPOSE 12009
 
-# Health check endpoint for Cloud Run
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:12009/health || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:12009/health || exit 1
 
-# Use Cloud Run specific entrypoint - Run node directly
+# Start backend server
 WORKDIR /app/apps/backend
 CMD ["node", "dist/index.js"]

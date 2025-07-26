@@ -1,44 +1,40 @@
-#!/bin/bash
+#!/bin/sh
+
 set -e
 
-echo "🚀 Starting MetaMCP Backend for Cloud Run..."
+echo "Starting MetaMCP Backend service..."
 
-# Set Cloud Run specific environment variables
-export PORT=${PORT:-12009}
-export NODE_ENV=${NODE_ENV:-production}
-export APP_URL=${APP_URL}
-export DATABASE_URL=${DATABASE_URL}
-export BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+APP_URL=https://metamcp-backend-555166161772.us-central1.run.app
 
-# Log startup information
-echo "📋 Backend Configuration:"
-echo "   - Port: $PORT"
-echo "   - Node Environment: $NODE_ENV"
-echo "   - App URL: $APP_URL"
-echo "   - Database: Supabase PostgreSQL"
-
-# Change to the backend directory
+# Start backend in the background
+echo "Starting backend server..."
 cd /app/apps/backend
+PORT=12009 node dist/index.js &
+BACKEND_PID=$!
 
-# Build the application if not already built
-if [ ! -d "dist" ]; then
-    echo "🔨 Building backend application..."
-    npm run build
+# Wait a moment for backend to start
+sleep 3
+
+# Check if backend is still running
+if ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "❌ Backend server died! Exiting..."
+    exit 1
 fi
+echo "✅ Backend server started successfully (PID: $BACKEND_PID)"
 
-# Create necessary directories for MCP server management
-mkdir -p /app/data/mcp-sessions
-mkdir -p /app/logs
+# Function to cleanup on exit
+cleanup() {
+    echo "Shutting down backend service..."
+    kill $BACKEND_PID 2>/dev/null || true
+    wait $BACKEND_PID 2>/dev/null || true
+    echo "Backend service stopped"
+}
 
-# Set proper permissions
-chmod -R 755 /app/data 2>/dev/null || true
-chmod -R 755 /app/logs 2>/dev/null || true
+# Trap signals for graceful shutdown
+trap cleanup TERM INT
 
-# Health check endpoint setup
-echo "🏥 Health check available at: http://localhost:$PORT/health"
+echo "Backend service started successfully!"
+echo "Backend running on port 12009"
 
-# Start the backend server
-echo "⚙️ Starting MetaMCP backend server on port $PORT..."
-
-# Use npm to start the backend
-exec npm run start
+# Wait for backend process
+wait $BACKEND_PID

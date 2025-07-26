@@ -1,49 +1,38 @@
-#!/bin/bash
+#!/bin/sh
+
 set -e
 
-echo "🚀 Starting MetaMCP Frontend for Cloud Run..."
+echo "Starting MetaMCP Frontend service..."
 
-# Set Cloud Run specific environment variables
-export PORT=${PORT:-12008}
-export NODE_ENV=${NODE_ENV:-production}
-
-# Ensure backend URL is set
-if [ -z "$NEXT_PUBLIC_BACKEND_URL" ]; then
-    echo "⚠️ Warning: NEXT_PUBLIC_BACKEND_URL not set. Frontend may not be able to communicate with backend."
-fi
-
-# Log startup information
-echo "📋 Frontend Configuration:"
-echo "   - Port: $PORT"
-echo "   - Node Environment: $NODE_ENV"
-echo "   - Backend URL: ${NEXT_PUBLIC_BACKEND_URL:-'Not Set'}"
-echo "   - Container: Frontend Only"
-
-# Change to the application directory
-cd /app
-
-# Create necessary directories
-mkdir -p /app/.next/cache
-mkdir -p /app/public
-
-# Set proper permissions for Next.js cache
-chmod -R 755 /app/.next/cache 2>/dev/null || true
-
-# Health check endpoint setup
-echo "🏥 Health check available at: http://localhost:$PORT/api/health"
-
-# Start the Next.js frontend server
-echo "🌐 Starting Next.js frontend server on port $PORT..."
-
-# Change to the frontend directory and use the frontend's start script
+# Start frontend in the background
+echo "Starting frontend server..."
 cd /app/apps/frontend
+PORT=12008 pnpm start &
+FRONTEND_PID=$!
 
-# Use the frontend start command from package.json
-if command -v pnpm &> /dev/null; then
-    exec pnpm run start
-elif command -v npm &> /dev/null; then
-    exec npm run start
-else
-    echo "❌ Error: Neither pnpm nor npm found"
+# Wait a moment for frontend to start
+sleep 3
+
+# Check if frontend is still running
+if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+    echo "❌ Frontend server died! Exiting..."
     exit 1
 fi
+echo "✅ Frontend server started successfully (PID: $FRONTEND_PID)"
+
+# Function to cleanup on exit
+cleanup() {
+    echo "Shutting down frontend service..."
+    kill $FRONTEND_PID 2>/dev/null || true
+    wait $FRONTEND_PID 2>/dev/null || true
+    echo "Frontend service stopped"
+}
+
+# Trap signals for graceful shutdown
+trap cleanup TERM INT
+
+echo "Frontend service started successfully!"
+echo "Frontend running on port 12008"
+
+# Wait for frontend process
+wait $FRONTEND_PID

@@ -453,6 +453,64 @@ cleanup_on_error() {
 # Set error trap
 trap cleanup_on_error ERR
 
+# Function to build backend container image
+build_backend_image() {
+    print_status "Building backend container image using Cloud Build..."
+    
+    # Check if backend cloudbuild.yaml exists
+    if [[ ! -f "microservices_deploy/cloudbuild-backend.yaml" ]]; then
+        print_error "microservices_deploy/cloudbuild-backend.yaml not found!"
+        print_error "Make sure you're running this script from the project root directory."
+        exit 1
+    fi
+    
+    print_status "Submitting backend build to Cloud Build..."
+    print_status "Using git SHA: $GIT_SHORT_SHA"
+    gcloud builds submit \
+        --config=microservices_deploy/cloudbuild-backend.yaml \
+        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION",SHORT_SHA="$GIT_SHORT_SHA" \
+        --project="$PROJECT_ID" \
+        --timeout=15m \
+        .
+    
+    print_success "Backend image built successfully ✅"
+    print_status "Backend image: gcr.io/$PROJECT_ID/metamcp-backend:$GIT_SHORT_SHA"
+    echo ""
+}
+
+# Function to build frontend container image
+build_frontend_image() {
+    print_status "Building frontend container image using Cloud Build..."
+    
+    # Check if frontend cloudbuild.yaml exists
+    if [[ ! -f "microservices_deploy/cloudbuild-frontend.yaml" ]]; then
+        print_error "microservices_deploy/cloudbuild-frontend.yaml not found!"
+        print_error "Make sure you're running this script from the project root directory."
+        exit 1
+    fi
+    
+    print_status "Submitting frontend build to Cloud Build..."
+    print_status "Using git SHA: $GIT_SHORT_SHA"
+    gcloud builds submit \
+        --config=microservices_deploy/cloudbuild-frontend.yaml \
+        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION",SHORT_SHA="$GIT_SHORT_SHA" \
+        --project="$PROJECT_ID" \
+        --timeout=15m \
+        .
+    
+    print_success "Frontend image built successfully ✅"
+    print_status "Frontend image: gcr.io/$PROJECT_ID/metamcp-frontend:$GIT_SHORT_SHA"
+    echo ""
+}
+
+# Function to build both images (for backward compatibility)
+build_images() {
+    print_status "Building all container images using Cloud Build..."
+    build_backend_image
+    build_frontend_image
+    print_success "All images built successfully ✅"
+}
+
 # Main deployment flow
 main() {
     check_prerequisites
@@ -561,61 +619,3 @@ case "${1:-}" in
         main
         ;;
 esac
-
-# Function to build backend container image
-build_backend_image() {
-    print_status "Building backend container image using Cloud Build..."
-    
-    # Check if backend cloudbuild.yaml exists
-    if [[ ! -f "microservices_deploy/cloudbuild-backend.yaml" ]]; then
-        print_error "microservices_deploy/cloudbuild-backend.yaml not found!"
-        print_error "Make sure you're running this script from the project root directory."
-        exit 1
-    fi
-    
-    print_status "Submitting backend build to Cloud Build..."
-    print_status "Using git SHA: $GIT_SHORT_SHA"
-    gcloud builds submit \
-        --config=microservices_deploy/cloudbuild-backend.yaml \
-        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION",SHORT_SHA="$GIT_SHORT_SHA" \
-        --project="$PROJECT_ID" \
-        --timeout=15m \
-        .
-    
-    print_success "Backend image built successfully ✅"
-    print_status "Backend image: gcr.io/$PROJECT_ID/metamcp-backend:$GIT_SHORT_SHA"
-    echo ""
-}
-
-# Function to build frontend container image
-build_frontend_image() {
-    print_status "Building frontend container image using Cloud Build..."
-    
-    # Check if frontend cloudbuild.yaml exists
-    if [[ ! -f "microservices_deploy/cloudbuild-frontend.yaml" ]]; then
-        print_error "microservices_deploy/cloudbuild-frontend.yaml not found!"
-        print_error "Make sure you're running this script from the project root directory."
-        exit 1
-    fi
-    
-    print_status "Submitting frontend build to Cloud Build..."
-    print_status "Using git SHA: $GIT_SHORT_SHA"
-    gcloud builds submit \
-        --config=microservices_deploy/cloudbuild-frontend.yaml \
-        --substitutions=_ENVIRONMENT="$ENVIRONMENT",_REGION="$REGION",SHORT_SHA="$GIT_SHORT_SHA" \
-        --project="$PROJECT_ID" \
-        --timeout=15m \
-        .
-    
-    print_success "Frontend image built successfully ✅"
-    print_status "Frontend image: gcr.io/$PROJECT_ID/metamcp-frontend:$GIT_SHORT_SHA"
-    echo ""
-}
-
-# Function to build both images (for backward compatibility)
-build_images() {
-    print_status "Building all container images using Cloud Build..."
-    build_backend_image
-    build_frontend_image
-    print_success "All images built successfully ✅"
-}

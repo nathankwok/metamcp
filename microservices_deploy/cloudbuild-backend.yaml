@@ -1,0 +1,59 @@
+# Cloud Build configuration for MetaMCP Backend Service
+# Builds only the backend service
+
+steps:
+  # Build the backend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-backend'
+    args:
+      - 'build'
+      - '--file=microservices_deploy/Dockerfile.backend'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-backend:latest'
+      - '--tag=gcr.io/$PROJECT_ID/metamcp-backend:$SHORT_SHA'
+      - '.'
+    timeout: '800s'
+
+  # Push backend image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-backend'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'gcr.io/$PROJECT_ID/metamcp-backend'
+    waitFor: ['build-backend']
+
+# Images to be pushed to Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/metamcp-backend:latest'
+  - 'gcr.io/$PROJECT_ID/metamcp-backend:$SHORT_SHA'
+
+# Build options
+options:
+  # Disk size for build
+  diskSizeGb: 100
+  
+  # Logging configuration
+  logging: CLOUD_LOGGING_ONLY
+  
+  # Substitution options
+  substitution_option: 'ALLOW_LOOSE'
+  
+  # Dynamic substitutions
+  dynamic_substitutions: true
+
+# Build timeout (15 minutes)
+timeout: '900s'
+
+# Substitutions for environment variables
+substitutions:
+  _ENVIRONMENT: 'production'
+  _REGION: 'us-central1'
+
+# Available substitution variables:
+# $PROJECT_ID - Google Cloud Project ID
+# $BUILD_ID - Unique build ID
+# $SHORT_SHA - First 7 characters of commit SHA
+# $COMMIT_SHA - Full commit SHA
+# $BRANCH_NAME - Git branch name
+# $TAG_NAME - Git tag name (if triggered by tag)
+# $REPO_NAME - Repository name

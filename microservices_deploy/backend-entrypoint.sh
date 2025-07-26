@@ -6,11 +6,15 @@ echo "🚀 Starting MetaMCP Backend for Cloud Run..."
 # Set Cloud Run specific environment variables
 export PORT=${PORT:-12009}
 export NODE_ENV=${NODE_ENV:-production}
+export APP_URL=${APP_URL}
+export DATABASE_URL=${DATABASE_URL}
+export BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
 
 # Log startup information
 echo "📋 Backend Configuration:"
 echo "   - Port: $PORT"
 echo "   - Node Environment: $NODE_ENV"
+echo "   - App URL: $APP_URL"
 echo "   - Database: Supabase PostgreSQL"
 
 # Change to the backend directory

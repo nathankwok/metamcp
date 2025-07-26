@@ -52,6 +52,12 @@ RUN pnpm build
 FROM base AS runner
 WORKDIR /app
 
+ENV APP_URL=https://metamcp-frontend-pbxnxwryca-uc.a.run.app
+ARG SUPABASE_CONNECTION_STRING
+ENV DATABASE_URL=$SUPABASE_CONNECTION_STRING
+ARG AUTH_SECRET
+ENV BETTER_AUTH_SECRET=$AUTH_SECRET
+
 # OCI image labels
 LABEL org.opencontainers.image.source="https://github.com/metatool-ai/metamcp"
 LABEL org.opencontainers.image.description="MetaMCP - aggregates MCP servers into a unified MetaMCP"
@@ -69,8 +75,8 @@ RUN adduser --system --uid 1001 --home /home/nextjs nextjs && \
     chown -R nextjs:nodejs /home/nextjs
 
 # Copy built applications
-COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next ./apps/frontend/.next
-COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/package.json ./apps/frontend/
+#COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/.next ./apps/frontend/.next
+#COPY --from=builder --chown=nextjs:nodejs /app/apps/frontend/package.json ./apps/frontend/
 COPY --from=builder --chown=nextjs:nodejs /app/apps/backend/dist ./apps/backend/dist
 COPY --from=builder --chown=nextjs:nodejs /app/apps/backend/package.json ./apps/backend/
 COPY --from=builder --chown=nextjs:nodejs /app/apps/backend/drizzle ./apps/backend/drizzle
@@ -94,12 +100,12 @@ RUN chmod +x docker-entrypoint.sh
 
 USER nextjs
 
-# Expose frontend port (Next.js)
-EXPOSE 12008
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:12008/health || exit 1
+## Expose frontend port (Next.js)
+#EXPOSE 12008
+#
+## Health check
+#HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+#    CMD curl -f http://localhost:12008/health || exit 1
 
 # Start both backend and frontend
 CMD ["./docker-entrypoint.sh"] 

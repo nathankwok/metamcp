@@ -80,7 +80,9 @@ app.use("/trpc", trpcRouter);
 
 const port = process.env.PORT || 12009;
 // const baseUrl = process.env.APP_URL || `http://localhost:${port}`;
-const baseUrl = process.env.APP_URL || `https://metamcp-backend-555166161772.us-central1.run.app`;
+const baseUrl = `https://metamcp-backend-555166161772.us-central1.run.app`;
+console.log(`index.js Base URL: ${baseUrl}`);
+console.log(`APP_URL is ${process.env.APP_URL}`);
 
 app.listen(port, async () => {
   console.log(`Server is running on port ${port}`);

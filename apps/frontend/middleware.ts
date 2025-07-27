@@ -1,6 +1,6 @@
 import { betterFetch } from "@better-fetch/fetch";
 import { NextRequest, NextResponse } from "next/server";
-import {getApiUrl} from "@/lib/env";
+import {getAbsoluteApiUrl} from "@/lib/env";
 
 const locales = ["en", "zh"];
 const defaultLocale = "en";
@@ -86,9 +86,9 @@ export async function middleware(request: NextRequest) {
       "";
 
     // Check if user is authenticated by calling the session endpoint
-    const apiUrl = getApiUrl() || process.env.NEXT_PUBLIC_API_URL || `https://metamcp-backend-555166161772.us-central1.run.app`;
+    const apiUrl = getAbsoluteApiUrl();
     const { data: session } = await betterFetch(`${apiUrl}/api/auth/get-session`, {
-      // Use absolute URL instead of relative path + baseUrl to avoid URL parsing issues
+      // Use absolute URL to avoid URL parsing issues in middleware context
 
 
       headers: {

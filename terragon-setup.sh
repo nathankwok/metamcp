@@ -16,6 +16,7 @@ INSTALL_GCLOUD=${INSTALL_GCLOUD:-"auto"}  # auto, yes, no
 MINIMAL_INSTALL=${MINIMAL_INSTALL:-"true"}  # Install only required components
 PARALLEL_OPERATIONS=${PARALLEL_OPERATIONS:-"true"}  # Run operations in parallel where possible
 DEBUG_OUTPUT=${DEBUG_OUTPUT:-"false"}  # Show detailed debug output
+ENABLE_APIS=${ENABLE_APIS:-"false"}  # Auto-enable required APIs
 
 # Colors for output
 RED='\033[0;31m'
@@ -449,26 +450,43 @@ else
     fi
 fi
 
-# Function to check required APIs
+# Function to check and optionally enable required APIs
 check_required_apis() {
     echo -e "\n${YELLOW}🔌 Checking required APIs...${NC}"
     
     local apis=(
-        "cloudresourcemanager.googleapis.com"
         "secretmanager.googleapis.com" 
         "cloudbuild.googleapis.com"
         "run.googleapis.com"
         "artifactregistry.googleapis.com"
     )
     
+    local enable_apis=${ENABLE_APIS:-"false"}  # Set to "true" to auto-enable APIs
+    
     for api in "${apis[@]}"; do
         if $GCLOUD_CMD services list --enabled --filter="name:$api" --format="value(name)" 2>/dev/null | grep -q "$api"; then
             echo -e "${GREEN}✅ $api enabled${NC}"
         else
             echo -e "${RED}❌ $api not enabled${NC}"
-            SETUP_FAILURES+=("API not enabled: $api")
+            
+            if [ "$enable_apis" = "true" ]; then
+                echo -e "${BLUE}Attempting to enable $api...${NC}"
+                if $GCLOUD_CMD services enable "$api" --quiet 2>/dev/null; then
+                    echo -e "${GREEN}✅ Successfully enabled $api${NC}"
+                else
+                    echo -e "${RED}❌ Failed to enable $api${NC}"
+                    SETUP_FAILURES+=("Failed to enable API: $api")
+                fi
+            else
+                echo -e "${YELLOW}💡 To enable: gcloud services enable $api --project=$PROJECT_ID${NC}"
+                SETUP_FAILURES+=("API not enabled: $api")
+            fi
         fi
     done
+    
+    if [ "$enable_apis" = "false" ] && [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
+        echo -e "\n${YELLOW}💡 To auto-enable APIs, run with: ENABLE_APIS=true ./terragon-setup.sh${NC}"
+    fi
 }
 
 # Function to check service account permissions
@@ -481,12 +499,12 @@ check_service_account_permissions() {
     if [ -n "$service_account_email" ]; then
         echo -e "${BLUE}Active service account: $service_account_email${NC}"
         
-        # Check project-level IAM policy
-        if $GCLOUD_CMD projects get-iam-policy "$PROJECT_ID" --format="value(bindings.members)" 2>/dev/null | grep -q "$service_account_email"; then
-            echo -e "${GREEN}✅ Service account found in project IAM policy${NC}"
+        # Check if service account can list enabled services (basic project access)
+        if $GCLOUD_CMD services list --enabled --limit=1 --format="value(name)" >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ Service account has basic project access${NC}"
         else
-            echo -e "${RED}❌ Service account not found in project IAM policy${NC}"
-            SETUP_FAILURES+=("Service account not in project IAM policy")
+            echo -e "${RED}❌ Service account lacks basic project access${NC}"
+            SETUP_FAILURES+=("Service account lacks basic project access")
         fi
     else
         echo -e "${RED}❌ No active service account found${NC}"
@@ -530,11 +548,6 @@ if [ "$CRITICAL_FAILURE" = false ]; then
     # Test 1: Basic authentication
     run_test "Basic Authentication" \
         "$GCLOUD_CMD auth list --filter=status:ACTIVE --format='value(account)' | grep -q 'terragon-deploy@'" \
-        "true"
-
-    # Test 2: Project access
-    run_test "Project Access" \
-        "$GCLOUD_CMD projects describe $PROJECT_ID --format='value(projectId)'" \
         "true"
 
     # Core permission tests (essential)

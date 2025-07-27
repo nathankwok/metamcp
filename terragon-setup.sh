@@ -4,7 +4,8 @@
 # This script installs gcloud CLI and Google Gemini CLI (if needed) and tests service account authentication
 # and verifies permissions for all required services: Cloud Build, Cloud Run, Artifact Registry, Secret Manager
 
-set -e
+# Note: Removed 'set -e' to allow script to continue even when individual commands fail
+# Individual test failures are tracked and reported at the end
 
 # Configuration
 GCLOUD_VERSION="463.0.0"  # Update as needed
@@ -25,6 +26,8 @@ NC='\033[0m' # No Color
 TESTS_PASSED=0
 TESTS_FAILED=0
 FAILED_TESTS=()
+SETUP_FAILURES=()
+CRITICAL_FAILURE=false
 
 echo -e "${BLUE}🧪 Google Cloud Service Account Connection Test${NC}"
 echo "=================================================================="
@@ -46,7 +49,8 @@ install_gcloud_cli() {
             ;;
         *)
             echo -e "${RED}Unsupported architecture: $ARCH${NC}"
-            exit 1
+            SETUP_FAILURES+=("Unsupported architecture: $ARCH")
+            return 1
             ;;
     esac
 
@@ -89,7 +93,8 @@ install_gcloud_cli() {
         ARCHIVE_NAME="google-cloud-cli-${GCLOUD_VERSION}-darwin-${ARCH}.tar.gz"
     else
         echo -e "${RED}Unsupported OS: $OS${NC}"
-        exit 1
+        SETUP_FAILURES+=("Unsupported OS: $OS")
+        return 1
     fi
 
     curl -O "$DOWNLOAD_URL"
@@ -213,16 +218,22 @@ else
             ;;
         "no")
             echo -e "${RED}Error: Google Cloud CLI not available and installation disabled${NC}"
-            exit 1
+            SETUP_FAILURES+=("Google Cloud CLI not available and installation disabled")
+            CRITICAL_FAILURE=true
             ;;
         "auto")
             echo -e "${BLUE}Installing Google Cloud CLI automatically...${NC}"
-            install_gcloud_cli
-            GCLOUD_CMD="gcloud"
+            if install_gcloud_cli; then
+                GCLOUD_CMD="gcloud"
+            else
+                SETUP_FAILURES+=("Google Cloud CLI installation failed")
+                CRITICAL_FAILURE=true
+            fi
             ;;
         *)
             echo -e "${RED}Error: Invalid INSTALL_GCLOUD value: $INSTALL_GCLOUD${NC}"
-            exit 1
+            SETUP_FAILURES+=("Invalid INSTALL_GCLOUD value: $INSTALL_GCLOUD")
+            CRITICAL_FAILURE=true
             ;;
     esac
 fi
@@ -255,7 +266,7 @@ else
             ;;
         *)
             echo -e "${RED}Error: Invalid INSTALL_GEMINI_CLI value: $INSTALL_GEMINI_CLI${NC}"
-            exit 1
+            SETUP_FAILURES+=("Invalid INSTALL_GEMINI_CLI value: $INSTALL_GEMINI_CLI")
             ;;
     esac
 fi
@@ -311,7 +322,8 @@ else
     echo "  - Place key file at $SERVICE_ACCOUNT_KEY_FILE"
     echo ""
     echo "Or run setup-service-account.sh first to create the key file"
-    exit 1
+    SETUP_FAILURES+=("No service account key provided")
+    CRITICAL_FAILURE=true
 fi
 
 # Extract project ID from key file if not provided
@@ -327,132 +339,157 @@ print(key_data.get('project_id', ''))
         PROJECT_ID=$(jq -r '.project_id' "$SERVICE_ACCOUNT_KEY_FILE")
     else
         echo -e "${RED}Error: Cannot extract project ID. Install python3 or jq, or set PROJECT_ID environment variable.${NC}"
-        exit 1
+        SETUP_FAILURES+=("Cannot extract project ID - missing python3 or jq")
+        CRITICAL_FAILURE=true
     fi
 fi
 
 echo -e "${BLUE}Project ID: $PROJECT_ID${NC}"
 echo -e "${BLUE}Service Account Key File: $SERVICE_ACCOUNT_KEY_FILE${NC}"
 
-# Authenticate with service account
-echo -e "\n${YELLOW}Authenticating with service account...${NC}"
-$GCLOUD_CMD auth activate-service-account --key-file="$SERVICE_ACCOUNT_KEY_FILE" --quiet 2>/dev/null
-
-# Set project
-$GCLOUD_CMD config set project "$PROJECT_ID" --quiet
-
-# Configure Docker credential helper
-echo -e "${GREEN}Configuring Docker credential helper for Artifact Registry...${NC}"
-$GCLOUD_CMD auth configure-docker --quiet
-
-echo -e "${GREEN}✅ Authentication successful${NC}"
-
-# Test 1: Basic authentication
-run_test "Basic Authentication" \
-    "$GCLOUD_CMD auth list --filter=status:ACTIVE --format='value(account)' | grep -q 'terragon-deploy@'" \
-    "true"
-
-# Test 2: Project access
-run_test "Project Access" \
-    "$GCLOUD_CMD projects describe $PROJECT_ID --format='value(projectId)'" \
-    "true"
-
-# Test 3: Cloud Build permissions
-echo -e "\n${BLUE}🏗️  Testing Cloud Build Permissions${NC}"
-run_test "Cloud Build - List builds" \
-    "$GCLOUD_CMD builds list --limit=1 --format='value(id)'" \
-    "true"
-
-run_test "Cloud Build - List repositories" \
-    "$GCLOUD_CMD source repos list --format='value(name)'" \
-    "true"
-
-# Test 4: Cloud Run permissions
-echo -e "\n${BLUE}🏃 Testing Cloud Run Permissions${NC}"
-run_test "Cloud Run - List services" \
-    "$GCLOUD_CMD run services list --format='value(metadata.name)'" \
-    "true"
-
-run_test "Cloud Run - List regions" \
-    "$GCLOUD_CMD run regions list --format='value(name)'" \
-    "true"
-
-# Test 5: Artifact Registry permissions
-echo -e "\n${BLUE}📦 Testing Artifact Registry Permissions${NC}"
-run_test "Artifact Registry - List repositories" \
-    "$GCLOUD_CMD artifacts repositories list --format='value(name)'" \
-    "true"
-
-run_test "Artifact Registry - List locations" \
-    "$GCLOUD_CMD artifacts locations list --format='value(name)'" \
-    "true"
-
-# Test 6: Secret Manager permissions
-echo -e "\n${BLUE}🔒 Testing Secret Manager Permissions${NC}"
-run_test "Secret Manager - List secrets" \
-    "$GCLOUD_CMD secrets list --format='value(name)'" \
-    "true"
-
-# Test 7: Storage permissions (needed for Cloud Build)
-echo -e "\n${BLUE}💾 Testing Storage Permissions${NC}"
-run_test "Storage - List buckets" \
-    "$GCLOUD_CMD storage ls --format='value(name)'" \
-    "true"
-
-# Test 8: Compute Engine permissions (needed for Cloud Run)
-echo -e "\n${BLUE}⚙️  Testing Compute Engine Permissions${NC}"
-run_test "Compute - List zones" \
-    "$GCLOUD_CMD compute zones list --format='value(name)' --limit=1" \
-    "true"
-
-# Test 9: IAM permissions
-echo -e "\n${BLUE}👥 Testing IAM Permissions${NC}"
-run_test "IAM - List service accounts" \
-    "$GCLOUD_CMD iam service-accounts list --format='value(email)'" \
-    "true"
-
-# Advanced tests - Create and test actual resources
-echo -e "\n${BLUE}🧪 Advanced Permission Tests${NC}"
-
-# Test creating a dummy secret (and clean up)
-TEST_SECRET_NAME="terragon-test-secret-$(date +%s)"
-echo -e "\n${YELLOW}Testing: Create and delete test secret${NC}"
-if echo "test-value" | $GCLOUD_CMD secrets create "$TEST_SECRET_NAME" --data-file=- --quiet 2>/dev/null; then
-    echo -e "${GREEN}✅ Secret creation successful${NC}"
-    if $GCLOUD_CMD secrets delete "$TEST_SECRET_NAME" --quiet 2>/dev/null; then
-        echo -e "${GREEN}✅ Secret deletion successful${NC}"
-        ((TESTS_PASSED += 2))
+# Skip authentication and tests if critical setup failure occurred
+if [ "$CRITICAL_FAILURE" = true ]; then
+    echo -e "${RED}⚠️  Critical setup failures detected. Skipping authentication and tests.${NC}"
+else
+    # Authenticate with service account
+    echo -e "\n${YELLOW}Authenticating with service account...${NC}"
+    if $GCLOUD_CMD auth activate-service-account --key-file="$SERVICE_ACCOUNT_KEY_FILE" --quiet 2>/dev/null; then
+        echo -e "${GREEN}✅ Service account authentication successful${NC}"
+        
+        # Set project
+        if $GCLOUD_CMD config set project "$PROJECT_ID" --quiet 2>/dev/null; then
+            echo -e "${GREEN}✅ Project set successfully${NC}"
+        else
+            echo -e "${RED}❌ Failed to set project${NC}"
+            SETUP_FAILURES+=("Failed to set project: $PROJECT_ID")
+        fi
+        
+        # Configure Docker credential helper
+        echo -e "${GREEN}Configuring Docker credential helper for Artifact Registry...${NC}"
+        if $GCLOUD_CMD auth configure-docker --quiet 2>/dev/null; then
+            echo -e "${GREEN}✅ Docker credential helper configured${NC}"
+        else
+            echo -e "${RED}❌ Failed to configure Docker credential helper${NC}"
+            SETUP_FAILURES+=("Failed to configure Docker credential helper")
+        fi
     else
-        echo -e "${RED}❌ Secret deletion failed${NC}"
+        echo -e "${RED}❌ Service account authentication failed${NC}"
+        SETUP_FAILURES+=("Service account authentication failed")
+        CRITICAL_FAILURE=true
+    fi
+fi
+
+# Only run tests if no critical failures occurred
+if [ "$CRITICAL_FAILURE" = false ]; then
+    echo -e "\n${GREEN}🧪 Running Google Cloud permission tests...${NC}"
+    
+    # Test 1: Basic authentication
+    run_test "Basic Authentication" \
+        "$GCLOUD_CMD auth list --filter=status:ACTIVE --format='value(account)' | grep -q 'terragon-deploy@'" \
+        "true"
+
+    # Test 2: Project access
+    run_test "Project Access" \
+        "$GCLOUD_CMD projects describe $PROJECT_ID --format='value(projectId)'" \
+        "true"
+
+    # Test 3: Cloud Build permissions
+    echo -e "\n${BLUE}🏗️  Testing Cloud Build Permissions${NC}"
+    run_test "Cloud Build - List builds" \
+        "$GCLOUD_CMD builds list --limit=1 --format='value(id)'" \
+        "true"
+
+    run_test "Cloud Build - List repositories" \
+        "$GCLOUD_CMD source repos list --format='value(name)'" \
+        "true"
+
+    # Test 4: Cloud Run permissions
+    echo -e "\n${BLUE}🏃 Testing Cloud Run Permissions${NC}"
+    run_test "Cloud Run - List services" \
+        "$GCLOUD_CMD run services list --format='value(metadata.name)'" \
+        "true"
+
+    run_test "Cloud Run - List regions" \
+        "$GCLOUD_CMD run regions list --format='value(name)'" \
+        "true"
+
+    # Test 5: Artifact Registry permissions
+    echo -e "\n${BLUE}📦 Testing Artifact Registry Permissions${NC}"
+    run_test "Artifact Registry - List repositories" \
+        "$GCLOUD_CMD artifacts repositories list --format='value(name)'" \
+        "true"
+
+    run_test "Artifact Registry - List locations" \
+        "$GCLOUD_CMD artifacts locations list --format='value(name)'" \
+        "true"
+
+    # Test 6: Secret Manager permissions
+    echo -e "\n${BLUE}🔒 Testing Secret Manager Permissions${NC}"
+    run_test "Secret Manager - List secrets" \
+        "$GCLOUD_CMD secrets list --format='value(name)'" \
+        "true"
+
+    # Test 7: Storage permissions (needed for Cloud Build)
+    echo -e "\n${BLUE}💾 Testing Storage Permissions${NC}"
+    run_test "Storage - List buckets" \
+        "$GCLOUD_CMD storage ls --format='value(name)'" \
+        "true"
+
+    # Test 8: Compute Engine permissions (needed for Cloud Run)
+    echo -e "\n${BLUE}⚙️  Testing Compute Engine Permissions${NC}"
+    run_test "Compute - List zones" \
+        "$GCLOUD_CMD compute zones list --format='value(name)' --limit=1" \
+        "true"
+
+    # Test 9: IAM permissions
+    echo -e "\n${BLUE}👥 Testing IAM Permissions${NC}"
+    run_test "IAM - List service accounts" \
+        "$GCLOUD_CMD iam service-accounts list --format='value(email)'" \
+        "true"
+
+    # Advanced tests - Create and test actual resources
+    echo -e "\n${BLUE}🧪 Advanced Permission Tests${NC}"
+
+    # Test creating a dummy secret (and clean up)
+    TEST_SECRET_NAME="terragon-test-secret-$(date +%s)"
+    echo -e "\n${YELLOW}Testing: Create and delete test secret${NC}"
+    if echo "test-value" | $GCLOUD_CMD secrets create "$TEST_SECRET_NAME" --data-file=- --quiet 2>/dev/null; then
+        echo -e "${GREEN}✅ Secret creation successful${NC}"
+        if $GCLOUD_CMD secrets delete "$TEST_SECRET_NAME" --quiet 2>/dev/null; then
+            echo -e "${GREEN}✅ Secret deletion successful${NC}"
+            ((TESTS_PASSED += 2))
+        else
+            echo -e "${RED}❌ Secret deletion failed${NC}"
+            ((TESTS_FAILED++))
+            FAILED_TESTS+=("Secret deletion")
+        fi
+    else
+        echo -e "${RED}❌ Secret creation failed${NC}"
         ((TESTS_FAILED++))
-        FAILED_TESTS+=("Secret deletion")
+        FAILED_TESTS+=("Secret creation")
     fi
-else
-    echo -e "${RED}❌ Secret creation failed${NC}"
-    ((TESTS_FAILED++))
-    FAILED_TESTS+=("Secret creation")
-fi
 
-# Test Docker credential helper setup (already done above, just verify)
-echo -e "\n${YELLOW}Testing: Docker credential helper verification${NC}"
-if command -v docker >/dev/null 2>&1; then
-    if docker --version >/dev/null 2>&1; then
-        echo -e "${GREEN}✅ Docker available and credential helper configured${NC}"
-        ((TESTS_PASSED++))
+    # Test Docker credential helper setup (already done above, just verify)
+    echo -e "\n${YELLOW}Testing: Docker credential helper verification${NC}"
+    if command -v docker >/dev/null 2>&1; then
+        if docker --version >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ Docker available and credential helper configured${NC}"
+            ((TESTS_PASSED++))
+        else
+            echo -e "${YELLOW}⚠️  Docker not available for testing${NC}"
+        fi
     else
-        echo -e "${YELLOW}⚠️  Docker not available for testing${NC}"
+        echo -e "${YELLOW}⚠️  Docker not installed - credential helper configured but cannot test${NC}"
     fi
-else
-    echo -e "${YELLOW}⚠️  Docker not installed - credential helper configured but cannot test${NC}"
+
+    # Test quota and limits
+    echo -e "\n${BLUE}📊 Checking Service Quotas${NC}"
+    run_test "Cloud Build - Check quota" \
+        "$GCLOUD_CMD compute project-info describe --format='value(quotas[].limit)'" \
+        "true"
 fi
 
-# Test quota and limits
-echo -e "\n${BLUE}📊 Checking Service Quotas${NC}"
-run_test "Cloud Build - Check quota" \
-    "$GCLOUD_CMD compute project-info describe --format='value(quotas[].limit)'" \
-    "true"
-
-# Test Gemini CLI if installed
+# Test Gemini CLI if installed (independent of gcloud setup)
 echo -e "\n${BLUE}🤖 Testing Gemini CLI${NC}"
 if command -v gemini >/dev/null 2>&1; then
     echo -e "\n${YELLOW}Testing: Gemini CLI availability${NC}"
@@ -470,45 +507,80 @@ fi
 
 # Summary
 echo -e "\n=================================================================="
-echo -e "${BLUE}📋 Test Summary${NC}"
-echo -e "Total Tests: $((TESTS_PASSED + TESTS_FAILED))"
-echo -e "${GREEN}Passed: $TESTS_PASSED${NC}"
-echo -e "${RED}Failed: $TESTS_FAILED${NC}"
+echo -e "${BLUE}📋 Complete Test Summary${NC}"
 
-if [ $TESTS_FAILED -eq 0 ]; then
-    echo -e "\n${GREEN}🎉 All tests passed! Service account is properly configured.${NC}"
-    echo -e "${GREEN}✅ Ready for deployment operations${NC}"
+# Setup failures summary
+if [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
+    echo -e "\n${RED}❌ Setup Failures (${#SETUP_FAILURES[@]}):${NC}"
+    for failure in "${SETUP_FAILURES[@]}"; do
+        echo -e "  • $failure"
+    done
+fi
 
-    echo -e "\n${BLUE}💡 Next steps:${NC}"
-    echo "  • Deploy with Cloud Build: $GCLOUD_CMD builds submit --tag gcr.io/$PROJECT_ID/my-app ."
-    echo "  • Create Cloud Run service: $GCLOUD_CMD run deploy --image gcr.io/$PROJECT_ID/my-app"
-    echo "  • Push to Artifact Registry: docker push REGION-docker.pkg.dev/$PROJECT_ID/REPO/IMAGE"
-    echo "  • Manage secrets: $GCLOUD_CMD secrets create my-secret --data-file=-"
-    if command -v gemini >/dev/null 2>&1; then
-        echo "  • Use Gemini CLI: gemini --help for AI assistance"
-    fi
+# Test results summary
+TOTAL_TESTS=$((TESTS_PASSED + TESTS_FAILED))
+echo -e "\n${BLUE}🧪 Test Results:${NC}"
+echo -e "  Total Tests Run: $TOTAL_TESTS"
+echo -e "  ${GREEN}Passed: $TESTS_PASSED${NC}"
+echo -e "  ${RED}Failed: $TESTS_FAILED${NC}"
 
-else
-    echo -e "\n${RED}❌ Some tests failed. Please check the following:${NC}"
+if [ $TESTS_FAILED -gt 0 ]; then
+    echo -e "\n${RED}❌ Failed Tests:${NC}"
     for failed_test in "${FAILED_TESTS[@]}"; do
         echo -e "  • $failed_test"
     done
+fi
 
+# Overall status
+echo -e "\n${BLUE}📊 Overall Status:${NC}"
+if [ "$CRITICAL_FAILURE" = true ]; then
+    echo -e "${RED}❌ CRITICAL FAILURES DETECTED${NC}"
+    echo -e "   Critical setup issues prevented testing. Review setup failures above."
+elif [ $TESTS_FAILED -eq 0 ] && [ ${#SETUP_FAILURES[@]} -eq 0 ]; then
+    echo -e "${GREEN}🎉 ALL TESTS PASSED! Service account is properly configured.${NC}"
+    echo -e "${GREEN}✅ Ready for deployment operations${NC}"
+elif [ $TESTS_FAILED -eq 0 ] && [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
+    echo -e "${YELLOW}⚠️  PARTIAL SUCCESS${NC}"
+    echo -e "   All tests passed, but some setup steps failed. Review setup failures above."
+else
+    echo -e "${RED}❌ SOME TESTS FAILED${NC}"
+    echo -e "   Review failed tests and setup failures above."
+fi
+
+# Next steps (only if some level of success)
+if [ "$CRITICAL_FAILURE" = false ]; then
+    echo -e "\n${BLUE}💡 Next steps:${NC}"
+    if [ -n "$GCLOUD_CMD" ] && [ -n "$PROJECT_ID" ]; then
+        echo "  • Deploy with Cloud Build: $GCLOUD_CMD builds submit --tag gcr.io/$PROJECT_ID/my-app ."
+        echo "  • Create Cloud Run service: $GCLOUD_CMD run deploy --image gcr.io/$PROJECT_ID/my-app"
+        echo "  • Push to Artifact Registry: docker push REGION-docker.pkg.dev/$PROJECT_ID/REPO/IMAGE"
+        echo "  • Manage secrets: $GCLOUD_CMD secrets create my-secret --data-file=-"
+    fi
+    if command -v gemini >/dev/null 2>&1; then
+        echo "  • Use Gemini CLI: gemini --help for AI assistance"
+    fi
+fi
+
+# Troubleshooting (if any issues)
+if [ $TESTS_FAILED -gt 0 ] || [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
     echo -e "\n${YELLOW}🔧 Troubleshooting suggestions:${NC}"
     echo "  • Verify all required APIs are enabled"
     echo "  • Check IAM roles are properly assigned"
     echo "  • Ensure service account key is valid and not expired"
     echo "  • Run setup-service-account.sh again if needed"
-
-    # Clean up temporary key file if created
-    if [ "$TEMP_KEY_FILE" = true ] && [ -f "$SERVICE_ACCOUNT_KEY_FILE" ]; then
-        rm -f "$SERVICE_ACCOUNT_KEY_FILE"
-    fi
-
-    exit 1
+    echo "  • Check network connectivity and firewall settings"
 fi
 
 # Clean up temporary key file if created
 if [ "$TEMP_KEY_FILE" = true ] && [ -f "$SERVICE_ACCOUNT_KEY_FILE" ]; then
     rm -f "$SERVICE_ACCOUNT_KEY_FILE"
+fi
+
+# Exit with appropriate code
+if [ "$CRITICAL_FAILURE" = true ]; then
+    exit 2  # Critical failure
+elif [ $TESTS_FAILED -gt 0 ] || [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
+    exit 1  # Some failures
+else
+    exit 0  # All good
 fi

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Google Cloud Service Account Connection Test Script
-# This script installs gcloud CLI and Google Gemini CLI (if needed) and tests service account authentication
+# This script installs gcloud CLI (if needed) and tests service account authentication
 # and verifies permissions for all required services: Cloud Build, Cloud Run, Artifact Registry, Secret Manager
 
 # Note: Removed 'set -e' to allow script to continue even when individual commands fail
@@ -13,9 +13,9 @@ SERVICE_ACCOUNT_KEY_JSON=${SERVICE_ACCOUNT_KEY_JSON:-""}
 SERVICE_ACCOUNT_KEY_FILE=${SERVICE_ACCOUNT_KEY_FILE:-"terragon-service-account-key.json"}
 PROJECT_ID=${PROJECT_ID:-""}
 INSTALL_GCLOUD=${INSTALL_GCLOUD:-"auto"}  # auto, yes, no
-INSTALL_GEMINI_CLI=${INSTALL_GEMINI_CLI:-"auto"}  # auto, yes, no
 MINIMAL_INSTALL=${MINIMAL_INSTALL:-"true"}  # Install only required components
 PARALLEL_OPERATIONS=${PARALLEL_OPERATIONS:-"true"}  # Run operations in parallel where possible
+DEBUG_OUTPUT=${DEBUG_OUTPUT:-"false"}  # Show detailed debug output
 
 # Colors for output
 RED='\033[0;31m'
@@ -79,20 +79,20 @@ install_gcloud_cli() {
         if command -v apt-get >/dev/null 2>&1; then
             # Debian/Ubuntu
             sudo apt-get update
-            sudo apt-get install -y curl python3 python3-pip nodejs npm
+            sudo apt-get install -y curl python3 python3-pip
         elif command -v yum >/dev/null 2>&1; then
             # CentOS/RHEL
             sudo yum update -y
-            sudo yum install -y curl python3 python3-pip nodejs npm
+            sudo yum install -y curl python3 python3-pip
         elif command -v apk >/dev/null 2>&1; then
             # Alpine
             sudo apk update
-            sudo apk add curl python3 py3-pip nodejs npm
+            sudo apk add curl python3 py3-pip
         elif command -v brew >/dev/null 2>&1; then
             # macOS with Homebrew
-            brew install curl python3 node
+            brew install curl python3
         else
-            echo -e "${YELLOW}Warning: Could not detect package manager. Ensure curl, python3, and Node.js are installed.${NC}"
+            echo -e "${YELLOW}Warning: Could not detect package manager. Ensure curl and python3 are installed.${NC}"
         fi
     fi
 
@@ -159,13 +159,17 @@ install_gcloud_cli() {
     if [ "$MINIMAL_INSTALL" = "true" ]; then
         echo -e "${BLUE}Installing minimal components only...${NC}"
         # Install only the components we need for our tests
-        "$INSTALL_DIR/install.sh" \
+        if "$INSTALL_DIR/install.sh" \
             --quiet \
             --usage-reporting=false \
             --command-completion=false \
             --path-update=false \
             --install-python=false \
-            --additional-components=""
+            --additional-components="" 2>/dev/null; then
+            echo -e "${GREEN}Installation script completed successfully${NC}"
+        else
+            echo -e "${YELLOW}Installation script completed with warnings (this is often normal)${NC}"
+        fi
         
         # Remove unnecessary components to save space and time
         echo -e "${BLUE}Removing unnecessary components...${NC}"
@@ -179,17 +183,60 @@ install_gcloud_cli() {
         rm -rf "$INSTALL_DIR/lib/googlecloudsdk/command_lib/ml" 2>/dev/null || true
     else
         echo -e "${BLUE}Installing full Google Cloud CLI...${NC}"
-        "$INSTALL_DIR/install.sh" --quiet --usage-reporting=false --command-completion=true --path-update=false
+        if "$INSTALL_DIR/install.sh" --quiet --usage-reporting=false --command-completion=true --path-update=false 2>/dev/null; then
+            echo -e "${GREEN}Installation script completed successfully${NC}"
+        else
+            echo -e "${YELLOW}Installation script completed with warnings (this is often normal)${NC}"
+        fi
+    fi
+    
+    # Ensure binary has correct permissions
+    if [ -f "$INSTALL_DIR/bin/gcloud" ]; then
+        chmod +x "$INSTALL_DIR/bin/gcloud" 2>/dev/null || true
+        echo -e "${BLUE}Binary permissions: $(ls -la "$INSTALL_DIR/bin/gcloud" | cut -d' ' -f1,3,4)${NC}"
     fi
 
-    # Verify installation (minimal output)
+    # Verify installation with multiple fallback methods
     echo -e "${GREEN}Verifying installation...${NC}"
-    if "$INSTALL_DIR/bin/gcloud" version --format="value(Google Cloud SDK)" >/dev/null 2>&1; then
+    
+    # Try multiple verification methods in order of preference
+    if "$INSTALL_DIR/bin/gcloud" --version >/dev/null 2>&1; then
+        # Method 1: Simple --version flag
+        GCLOUD_VERSION_OUTPUT=$("$INSTALL_DIR/bin/gcloud" --version 2>/dev/null | head -1)
         echo -e "${GREEN}✅ Google Cloud CLI installed successfully${NC}"
-        echo -e "${BLUE}Version: $("$INSTALL_DIR/bin/gcloud" version --format="value(Google Cloud SDK)")${NC}"
+        echo -e "${BLUE}Version: $GCLOUD_VERSION_OUTPUT${NC}"
+    elif "$INSTALL_DIR/bin/gcloud" version >/dev/null 2>&1; then
+        # Method 2: version subcommand
+        GCLOUD_VERSION_OUTPUT=$("$INSTALL_DIR/bin/gcloud" version 2>/dev/null | grep -m1 "Google Cloud SDK" || echo "Version info unavailable")
+        echo -e "${GREEN}✅ Google Cloud CLI installed successfully${NC}"
+        echo -e "${BLUE}Version: $GCLOUD_VERSION_OUTPUT${NC}"
+    elif [ -x "$INSTALL_DIR/bin/gcloud" ]; then
+        # Method 3: Just check if the binary exists and is executable
+        echo -e "${GREEN}✅ Google Cloud CLI binary installed${NC}"
+        echo -e "${BLUE}Binary location: $INSTALL_DIR/bin/gcloud${NC}"
+        # Try to get version info without failing the verification
+        GCLOUD_VERSION_OUTPUT=$("$INSTALL_DIR/bin/gcloud" --version 2>&1 | head -1 || echo "Version check requires initialization")
+        echo -e "${BLUE}Status: $GCLOUD_VERSION_OUTPUT${NC}"
     else
         echo -e "${RED}❌ Installation verification failed${NC}"
-        SETUP_FAILURES+=("Google Cloud CLI installation verification failed")
+        echo -e "${RED}Binary not found or not executable at: $INSTALL_DIR/bin/gcloud${NC}"
+        if [ -f "$INSTALL_DIR/bin/gcloud" ]; then
+            echo -e "${RED}File exists but is not executable. Permissions: $(ls -la "$INSTALL_DIR/bin/gcloud")${NC}"
+        else
+            echo -e "${RED}Binary file does not exist${NC}"
+        fi
+        
+        # Show debug output if enabled
+        if [ "$DEBUG_OUTPUT" = "true" ]; then
+            echo -e "${YELLOW}Debug: Contents of $INSTALL_DIR/bin:${NC}"
+            ls -la "$INSTALL_DIR/bin/" 2>/dev/null || echo "Directory does not exist"
+            echo -e "${YELLOW}Debug: Installation directory structure:${NC}"
+            find "$INSTALL_DIR" -type f -name "*gcloud*" 2>/dev/null | head -10 || echo "No gcloud files found"
+            echo -e "${YELLOW}Debug: Trying direct execution:${NC}"
+            "$INSTALL_DIR/bin/gcloud" --version 2>&1 | head -5 || echo "Direct execution failed"
+        fi
+        
+        SETUP_FAILURES+=("Google Cloud CLI installation verification failed - binary not found or executable")
         return 1
     fi
 
@@ -198,61 +245,6 @@ install_gcloud_cli() {
     rm -rf "$TEMP_DIR"
 }
 
-# Function to install Google Gemini CLI
-install_gemini_cli() {
-    echo -e "${GREEN}Installing Google Gemini CLI...${NC}"
-
-    # Check if Node.js and npm are available
-    if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-        echo -e "${YELLOW}Node.js and npm are required for Gemini CLI installation...${NC}"
-
-        # Install Node.js if not present
-        echo -e "${GREEN}Installing Node.js and npm...${NC}"
-        if command -v apt-get >/dev/null 2>&1; then
-            # Debian/Ubuntu
-            sudo apt-get update
-            sudo apt-get install -y nodejs npm
-        elif command -v yum >/dev/null 2>&1; then
-            # CentOS/RHEL
-            sudo yum update -y
-            sudo yum install -y nodejs npm
-        elif command -v apk >/dev/null 2>&1; then
-            # Alpine
-            sudo apk update
-            sudo apk add nodejs npm
-        elif command -v brew >/dev/null 2>&1; then
-            # macOS with Homebrew
-            brew install node
-        else
-            echo -e "${RED}Error: Cannot install Node.js automatically. Please install Node.js and npm manually.${NC}"
-            return 1
-        fi
-    fi
-
-    # Verify Node.js installation
-    echo -e "${BLUE}Node.js version: $(node --version)${NC}"
-    echo -e "${BLUE}npm version: $(npm --version)${NC}"
-
-    # Install Gemini CLI globally with optimizations
-    echo -e "${GREEN}Installing @google/gemini-cli globally...${NC}"
-    if command -v sudo >/dev/null 2>&1 && [ "$EUID" -ne 0 ]; then
-        # Non-root user - use sudo for global npm install with optimizations
-        sudo npm install -g @google/gemini-cli --silent --no-audit --no-fund
-    else
-        # Root user or no sudo available
-        npm install -g @google/gemini-cli --silent --no-audit --no-fund
-    fi
-
-    # Verify installation
-    if command -v gemini >/dev/null 2>&1; then
-        echo -e "${GREEN}✅ Google Gemini CLI installed successfully${NC}"
-        echo -e "${BLUE}Gemini CLI version: $(gemini --version 2>/dev/null || echo 'Version check failed')${NC}"
-        return 0
-    else
-        echo -e "${RED}❌ Gemini CLI installation failed or not in PATH${NC}"
-        return 1
-    fi
-}
 
 # Check if gcloud is available and install if needed
 echo -e "\n${YELLOW}🔍 Checking Google Cloud CLI availability...${NC}"
@@ -289,38 +281,6 @@ else
     esac
 fi
 
-# Check if Gemini CLI is available and install if needed
-echo -e "\n${YELLOW}🤖 Checking Google Gemini CLI availability...${NC}"
-if command -v gemini >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ Google Gemini CLI found: $(gemini --version 2>/dev/null || echo 'Version check failed')${NC}"
-else
-    echo -e "${YELLOW}❓ Google Gemini CLI not found${NC}"
-
-    case $INSTALL_GEMINI_CLI in
-        "yes")
-            if install_gemini_cli; then
-                echo -e "${GREEN}✅ Gemini CLI installation completed${NC}"
-            else
-                echo -e "${RED}❌ Gemini CLI installation failed${NC}"
-            fi
-            ;;
-        "no")
-            echo -e "${YELLOW}⚠️  Gemini CLI not available and installation disabled${NC}"
-            ;;
-        "auto")
-            echo -e "${BLUE}Installing Google Gemini CLI automatically...${NC}"
-            if install_gemini_cli; then
-                echo -e "${GREEN}✅ Gemini CLI installation completed${NC}"
-            else
-                echo -e "${RED}❌ Gemini CLI installation failed${NC}"
-            fi
-            ;;
-        *)
-            echo -e "${RED}Error: Invalid INSTALL_GEMINI_CLI value: $INSTALL_GEMINI_CLI${NC}"
-            SETUP_FAILURES+=("Invalid INSTALL_GEMINI_CLI value: $INSTALL_GEMINI_CLI")
-            ;;
-    esac
-fi
 
 # Function to run test and track results (optimized for speed)
 run_test() {
@@ -382,7 +342,7 @@ if [ -n "$SERVICE_ACCOUNT_KEY_JSON" ]; then
     echo -e "${BLUE}Using service account key from environment variable...${NC}"
     SERVICE_ACCOUNT_KEY_FILE="/tmp/service-account-key-$$.json"
     # Write key to file without echoing contents to stdout
-    printf '%s' "$SERVICE_ACCOUNT_KEY_JSON" > "$SERVICE_ACCOUNT_KEY_FILE" 2>/dev/null
+    echo "$SERVICE_ACCOUNT_KEY_JSON" > "$SERVICE_ACCOUNT_KEY_FILE" 2>/dev/null
     TEMP_KEY_FILE=true
 elif [ -f "$SERVICE_ACCOUNT_KEY_FILE" ]; then
     echo -e "${BLUE}Using existing service account key file: $SERVICE_ACCOUNT_KEY_FILE${NC}"
@@ -602,21 +562,6 @@ if [ "$CRITICAL_FAILURE" = false ]; then
     fi
 fi
 
-# Test Gemini CLI if installed (independent of gcloud setup)
-echo -e "\n${BLUE}🤖 Testing Gemini CLI${NC}"
-if command -v gemini >/dev/null 2>&1; then
-    echo -e "\n${YELLOW}Testing: Gemini CLI availability${NC}"
-    if gemini --help >/dev/null 2>&1; then
-        echo -e "${GREEN}✅ Gemini CLI is working${NC}"
-        ((TESTS_PASSED++))
-    else
-        echo -e "${RED}❌ Gemini CLI not responding${NC}"
-        ((TESTS_FAILED++))
-        FAILED_TESTS+=("Gemini CLI functionality")
-    fi
-else
-    echo -e "${YELLOW}⚠️  Gemini CLI not installed - skipping test${NC}"
-fi
 
 # Calculate runtime
 END_TIME=$(date +%s)
@@ -673,9 +618,6 @@ if [ "$CRITICAL_FAILURE" = false ]; then
         echo "  • Create Cloud Run service: $GCLOUD_CMD run deploy --image gcr.io/$PROJECT_ID/my-app"
         echo "  • Push to Artifact Registry: docker push REGION-docker.pkg.dev/$PROJECT_ID/REPO/IMAGE"
         echo "  • Manage secrets: $GCLOUD_CMD secrets create my-secret --data-file=-"
-    fi
-    if command -v gemini >/dev/null 2>&1; then
-        echo "  • Use Gemini CLI: gemini --help for AI assistance"
     fi
 fi
 

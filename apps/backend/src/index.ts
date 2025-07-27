@@ -1,3 +1,4 @@
+import cors from "cors";
 import express from "express";
 
 import { auth } from "./auth";
@@ -17,6 +18,14 @@ app.use((req, res, next) => {
     express.json()(req, res, next);
   }
 });
+
+// Add CORS middleware for auth routes
+app.use("/api/auth", cors({
+  origin: ["https://metamcp-frontend-555166161772.us-central1.run.app", "https://metamcp-frontend-pbxnxwryca-uc.a.run.app"],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin"],
+}));
 
 // Mount better-auth routes by calling auth API directly
 app.use(async (req, res, next) => {

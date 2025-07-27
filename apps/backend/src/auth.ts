@@ -57,6 +57,8 @@ export const auth = betterAuth({
     "http://0.0.0.0",
     "http://0.0.0.0:3000",
     "http://0.0.0.0:12008",
+    "https://metamcp-frontend-555166161772.us-central1.run.app",
+    "https://metamcp-frontend-pbxnxwryca-uc.a.run.app",
     ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
   ],
   plugins: [

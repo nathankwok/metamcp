@@ -42,6 +42,13 @@ fi
 # Start timer
 START_TIME=$(date +%s)
 
+# Ensure gcloud is in PATH for current session
+if [ -d "/opt/google-cloud-sdk/bin" ]; then
+    export PATH="/opt/google-cloud-sdk/bin:$PATH"
+elif [ -d "$HOME/google-cloud-sdk/bin" ]; then
+    export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+fi
+
 # Function to install gcloud CLI
 install_gcloud_cli() {
     echo -e "${GREEN}Installing Google Cloud CLI...${NC}"
@@ -289,6 +296,54 @@ install_gemini_cli() {
     fi
 }
 
+# Function to check gcloud CLI components and versions
+check_gcloud_components() {
+    echo -e "\n${YELLOW}📋 Checking Google Cloud CLI components and versions...${NC}"
+    
+    # Check if gcloud is available
+    if ! command -v gcloud >/dev/null 2>&1; then
+        echo -e "${RED}❌ Google Cloud CLI not found in PATH${NC}"
+        return 1
+    fi
+    
+    # Display current gcloud version
+    echo -e "${GREEN}🔍 Google Cloud CLI Version:${NC}"
+    if gcloud version --format="table(component:label=COMPONENT,version:label=VERSION)" 2>/dev/null; then
+        echo ""
+    else
+        # Fallback to basic version command
+        gcloud version 2>/dev/null || echo -e "${RED}Failed to get version information${NC}"
+        echo ""
+    fi
+    
+    # Display components list with status
+    echo -e "${GREEN}📦 Installed Components:${NC}"
+    if gcloud components list --format="table(name:label=COMPONENT,id:label=ID,size.size():label=SIZE,state.name:label=STATUS)" --filter="state.name:(Installed OR 'Update Available')" 2>/dev/null; then
+        echo ""
+    else
+        # Fallback to basic components list
+        echo -e "${YELLOW}Using basic components list format:${NC}"
+        gcloud components list 2>/dev/null | head -20 || echo -e "${RED}Failed to list components${NC}"
+        echo ""
+    fi
+    
+    # Check for available updates
+    echo -e "${GREEN}🔄 Update Status:${NC}"
+    UPDATE_COUNT=$(gcloud components list --format="value(name)" --filter="state.name:'Update Available'" 2>/dev/null | wc -l)
+    if [ "$UPDATE_COUNT" -gt 0 ]; then
+        echo -e "${YELLOW}⚠️  $UPDATE_COUNT component(s) have updates available${NC}"
+        echo -e "${BLUE}Run 'gcloud components update' to update all components${NC}"
+    else
+        echo -e "${GREEN}✅ All installed components are up to date${NC}"
+    fi
+    
+    # Display current SDK version vs latest
+    CURRENT_VERSION=$(gcloud version --format="value(Google Cloud SDK)" 2>/dev/null)
+    if [ -n "$CURRENT_VERSION" ]; then
+        echo -e "${BLUE}Current SDK Version: $CURRENT_VERSION${NC}"
+    fi
+}
+
 
 # Check if gcloud is available and install if needed
 echo -e "\n${YELLOW}🔍 Checking Google Cloud CLI availability...${NC}"
@@ -473,6 +528,11 @@ else
         SETUP_FAILURES+=("Service account authentication failed")
         CRITICAL_FAILURE=true
     fi
+fi
+
+# Check gcloud components and versions if setup was successful
+if [ "$CRITICAL_FAILURE" = false ] && command -v gcloud >/dev/null 2>&1; then
+    check_gcloud_components
 fi
 
 # Calculate runtime

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Google Cloud Service Account Connection Test Script
-# This script installs gcloud CLI (if needed) and tests service account authentication
-# and verifies permissions for all required services: Cloud Build, Cloud Run, Artifact Registry, Secret Manager
+# Google Cloud and Gemini CLI Setup Script
+# This script installs gcloud CLI (minimal) and Google Gemini CLI from npm
+# Sets up service account authentication for Google Cloud services
 
 # Note: Removed 'set -e' to allow script to continue even when individual commands fail
-# Individual test failures are tracked and reported at the end
+# Individual setup failures are tracked and reported at the end
 
 # Configuration
 GCLOUD_VERSION="463.0.0"  # Update as needed
@@ -13,10 +13,10 @@ SERVICE_ACCOUNT_KEY_JSON=${SERVICE_ACCOUNT_KEY_JSON:-""}
 SERVICE_ACCOUNT_KEY_FILE=${SERVICE_ACCOUNT_KEY_FILE:-"terragon-service-account-key.json"}
 PROJECT_ID=${PROJECT_ID:-""}
 INSTALL_GCLOUD=${INSTALL_GCLOUD:-"auto"}  # auto, yes, no
+INSTALL_GEMINI_CLI=${INSTALL_GEMINI_CLI:-"auto"}  # auto, yes, no
 MINIMAL_INSTALL=${MINIMAL_INSTALL:-"true"}  # Install only required components
-PARALLEL_OPERATIONS=${PARALLEL_OPERATIONS:-"true"}  # Run operations in parallel where possible
 DEBUG_OUTPUT=${DEBUG_OUTPUT:-"false"}  # Show detailed debug output
-ENABLE_APIS=${ENABLE_APIS:-"false"}  # Auto-enable required APIs
+ENABLE_APIS=${ENABLE_APIS:-"true"}  # Auto-enable required APIs
 
 # Colors for output
 RED='\033[0;31m'
@@ -25,25 +25,18 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Test results tracking
-TESTS_PASSED=0
-TESTS_FAILED=0
-FAILED_TESTS=()
+# Setup results tracking
 SETUP_FAILURES=()
 CRITICAL_FAILURE=false
 
-echo -e "${BLUE}🧪 Google Cloud Service Account Connection Test${NC}"
+echo -e "${BLUE}🛠️  Google Cloud and Gemini CLI Setup${NC}"
 echo "=================================================================="
 
-# Performance mode indicator
-if [ "$MINIMAL_INSTALL" = "true" ] && [ "$PARALLEL_OPERATIONS" = "true" ]; then
-    echo -e "${GREEN}🚀 Running in FAST MODE (minimal install + parallel operations)${NC}"
-elif [ "$MINIMAL_INSTALL" = "true" ]; then
-    echo -e "${YELLOW}⚡ Running in minimal install mode${NC}"
-elif [ "$PARALLEL_OPERATIONS" = "true" ]; then
-    echo -e "${YELLOW}⚡ Running in parallel operations mode${NC}"
+# Installation mode indicator
+if [ "$MINIMAL_INSTALL" = "true" ]; then
+    echo -e "${GREEN}⚡ Running in minimal install mode${NC}"
 else
-    echo -e "${BLUE}🐌 Running in full mode (slower but comprehensive)${NC}"
+    echo -e "${BLUE}🔧 Running in full install mode${NC}"
 fi
 
 # Start timer
@@ -75,25 +68,25 @@ install_gcloud_cli() {
 
     # Install dependencies if needed
     echo -e "${GREEN}Checking dependencies...${NC}"
-    if ! command -v curl >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    if ! command -v curl >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
         echo -e "${YELLOW}Installing dependencies...${NC}"
         if command -v apt-get >/dev/null 2>&1; then
             # Debian/Ubuntu
             sudo apt-get update
-            sudo apt-get install -y curl python3 python3-pip
+            sudo apt-get install -y curl python3 python3-pip nodejs npm
         elif command -v yum >/dev/null 2>&1; then
             # CentOS/RHEL
             sudo yum update -y
-            sudo yum install -y curl python3 python3-pip
+            sudo yum install -y curl python3 python3-pip nodejs npm
         elif command -v apk >/dev/null 2>&1; then
             # Alpine
             sudo apk update
-            sudo apk add curl python3 py3-pip
+            sudo apk add curl python3 py3-pip nodejs npm
         elif command -v brew >/dev/null 2>&1; then
             # macOS with Homebrew
-            brew install curl python3
+            brew install curl python3 node npm
         else
-            echo -e "${YELLOW}Warning: Could not detect package manager. Ensure curl and python3 are installed.${NC}"
+            echo -e "${YELLOW}Warning: Could not detect package manager. Ensure curl, python3, node, and npm are installed.${NC}"
         fi
     fi
 
@@ -171,7 +164,7 @@ install_gcloud_cli() {
         else
             echo -e "${YELLOW}Installation script completed with warnings (this is often normal)${NC}"
         fi
-        
+
         # Remove unnecessary components to save space and time
         echo -e "${BLUE}Removing unnecessary components...${NC}"
         rm -rf "$INSTALL_DIR/platform/bq" 2>/dev/null || true
@@ -190,7 +183,7 @@ install_gcloud_cli() {
             echo -e "${YELLOW}Installation script completed with warnings (this is often normal)${NC}"
         fi
     fi
-    
+
     # Ensure binary has correct permissions
     if [ -f "$INSTALL_DIR/bin/gcloud" ]; then
         chmod +x "$INSTALL_DIR/bin/gcloud" 2>/dev/null || true
@@ -199,7 +192,7 @@ install_gcloud_cli() {
 
     # Verify installation with multiple fallback methods
     echo -e "${GREEN}Verifying installation...${NC}"
-    
+
     # Try multiple verification methods in order of preference
     if "$INSTALL_DIR/bin/gcloud" --version >/dev/null 2>&1; then
         # Method 1: Simple --version flag
@@ -226,7 +219,7 @@ install_gcloud_cli() {
         else
             echo -e "${RED}Binary file does not exist${NC}"
         fi
-        
+
         # Show debug output if enabled
         if [ "$DEBUG_OUTPUT" = "true" ]; then
             echo -e "${YELLOW}Debug: Contents of $INSTALL_DIR/bin:${NC}"
@@ -236,7 +229,7 @@ install_gcloud_cli() {
             echo -e "${YELLOW}Debug: Trying direct execution:${NC}"
             "$INSTALL_DIR/bin/gcloud" --version 2>&1 | head -5 || echo "Direct execution failed"
         fi
-        
+
         SETUP_FAILURES+=("Google Cloud CLI installation verification failed - binary not found or executable")
         return 1
     fi
@@ -244,6 +237,56 @@ install_gcloud_cli() {
     # Clean up
     cd - >/dev/null
     rm -rf "$TEMP_DIR"
+}
+
+# Function to install Google Gemini CLI from npm
+install_gemini_cli() {
+    echo -e "${GREEN}Installing Google Gemini CLI...${NC}"
+    
+    # Check if npm is available
+    if ! command -v npm >/dev/null 2>&1; then
+        echo -e "${RED}Error: npm not found. Please install Node.js and npm first.${NC}"
+        SETUP_FAILURES+=("npm not available for Gemini CLI installation")
+        return 1
+    fi
+    
+    # Check if we're in a directory where we can install globally or create a local install
+    echo -e "${BLUE}Installing @google/generative-ai globally via npm...${NC}"
+    
+    # Try global installation first, fallback to local
+    if npm install -g @google/generative-ai >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ Google Gemini CLI installed globally${NC}"
+        GEMINI_CLI_INSTALLED="global"
+    else
+        echo -e "${YELLOW}Global installation failed, trying local installation...${NC}"
+        # Create a local directory for gemini cli if it doesn't exist
+        GEMINI_LOCAL_DIR="$HOME/.gemini-cli"
+        mkdir -p "$GEMINI_LOCAL_DIR"
+        cd "$GEMINI_LOCAL_DIR"
+        
+        if npm init -y >/dev/null 2>&1 && npm install @google/generative-ai >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ Google Gemini CLI installed locally in $GEMINI_LOCAL_DIR${NC}"
+            echo -e "${BLUE}Local installation path: $GEMINI_LOCAL_DIR/node_modules/.bin${NC}"
+            GEMINI_CLI_INSTALLED="local"
+            # Add to PATH for current session
+            export PATH="$GEMINI_LOCAL_DIR/node_modules/.bin:$PATH"
+        else
+            echo -e "${RED}❌ Failed to install Google Gemini CLI${NC}"
+            SETUP_FAILURES+=("Failed to install Google Gemini CLI via npm")
+            cd - >/dev/null
+            return 1
+        fi
+        cd - >/dev/null
+    fi
+    
+    # Verify installation
+    echo -e "${GREEN}Verifying Gemini CLI installation...${NC}"
+    if npm list -g @google/generative-ai >/dev/null 2>&1 || npm list @google/generative-ai >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ Google Gemini CLI package verified${NC}"
+        echo -e "${BLUE}Installation type: $GEMINI_CLI_INSTALLED${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Package installed but verification unclear${NC}"
+    fi
 }
 
 
@@ -282,67 +325,36 @@ else
     esac
 fi
 
+# Check if Gemini CLI should be installed
+echo -e "\n${YELLOW}🤖 Checking Google Gemini CLI availability...${NC}"
+if npm list -g @google/generative-ai >/dev/null 2>&1 || npm list @google/generative-ai >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ Google Gemini CLI package found${NC}"
+else
+    echo -e "${YELLOW}❓ Google Gemini CLI not found${NC}"
+    
+    case $INSTALL_GEMINI_CLI in
+        "yes")
+            install_gemini_cli
+            ;;
+        "no")
+            echo -e "${YELLOW}⚠️  Google Gemini CLI installation disabled${NC}"
+            ;;
+        "auto")
+            echo -e "${BLUE}Installing Google Gemini CLI automatically...${NC}"
+            if ! install_gemini_cli; then
+                SETUP_FAILURES+=("Google Gemini CLI installation failed")
+            fi
+            ;;
+        *)
+            echo -e "${RED}Error: Invalid INSTALL_GEMINI_CLI value: $INSTALL_GEMINI_CLI${NC}"
+            SETUP_FAILURES+=("Invalid INSTALL_GEMINI_CLI value: $INSTALL_GEMINI_CLI")
+            ;;
+    esac
+fi
 
-# Function to run test and track results (optimized for speed)
-run_test() {
-    local test_name="$1"
-    local test_command="$2"
-    local expected_success="$3"  # true/false
-    local error_output=""
 
-    if [ "$PARALLEL_OPERATIONS" = "true" ]; then
-        # Quick test without verbose output
-        printf "%-40s" "$test_name..."
-    else
-        echo -e "\n${YELLOW}Testing: $test_name${NC}"
-        echo "Command: $test_command"
-    fi
-
-    # Use timeout to prevent hanging tests
-    if timeout 30s bash -c "$test_command" >/dev/null 2>&1; then
-        if [ "$expected_success" = "true" ]; then
-            if [ "$PARALLEL_OPERATIONS" = "true" ]; then
-                echo -e "${GREEN}✅ PASS${NC}"
-            else
-                echo -e "${GREEN}✅ PASS${NC}"
-            fi
-            ((TESTS_PASSED++))
-        else
-            if [ "$PARALLEL_OPERATIONS" = "true" ]; then
-                echo -e "${RED}❌ UNEXPECTED SUCCESS${NC}"
-            else
-                echo -e "${RED}❌ UNEXPECTED SUCCESS (expected failure)${NC}"
-            fi
-            ((TESTS_FAILED++))
-            FAILED_TESTS+=("$test_name")
-        fi
-    else
-        if [ "$expected_success" = "false" ]; then
-            if [ "$PARALLEL_OPERATIONS" = "true" ]; then
-                echo -e "${GREEN}✅ PASS (expected fail)${NC}"
-            else
-                echo -e "${GREEN}✅ PASS (expected failure)${NC}"
-            fi
-            ((TESTS_PASSED++))
-        else
-            # Capture error details for debugging
-            error_output=$(timeout 30s bash -c "$test_command" 2>&1 | head -3)
-            if [ "$PARALLEL_OPERATIONS" = "true" ]; then
-                echo -e "${RED}❌ FAIL${NC}"
-                if [ "$DEBUG_OUTPUT" = "true" ] && [ -n "$error_output" ]; then
-                    echo -e "    ${YELLOW}Error: $error_output${NC}"
-                fi
-            else
-                echo -e "${RED}❌ FAIL${NC}"
-                if [ -n "$error_output" ]; then
-                    echo -e "${YELLOW}Error details: $error_output${NC}"
-                fi
-            fi
-            ((TESTS_FAILED++))
-            FAILED_TESTS+=("$test_name")
-        fi
-    fi
-}
+# Setup completion and authentication
+echo -e "\n${GREEN}🔐 Completing setup and authentication...${NC}"
 
 # Setup service account authentication - handle both file and JSON env var
 echo -e "\n${YELLOW}🔐 Setting up service account authentication...${NC}"
@@ -391,7 +403,7 @@ except Exception as e:
     print(f'ERROR: {e}', file=sys.stderr)
     sys.exit(1)
 " 2>/dev/null)
-        
+
         if [ $? -ne 0 ] || [ -z "$PROJECT_ID" ]; then
             echo -e "${RED}Error: Failed to extract project_id from service account key${NC}"
             SETUP_FAILURES+=("Failed to extract project_id from service account key")
@@ -422,7 +434,7 @@ else
     echo -e "\n${YELLOW}Authenticating with service account...${NC}"
     if $GCLOUD_CMD auth activate-service-account --key-file="$SERVICE_ACCOUNT_KEY_FILE" --quiet 2>/dev/null; then
         echo -e "${GREEN}✅ Service account authentication successful${NC}"
-        
+
         # Set project
         if $GCLOUD_CMD config set project "$PROJECT_ID" --quiet 2>/dev/null; then
             echo -e "${GREEN}✅ Project set successfully${NC}"
@@ -430,7 +442,7 @@ else
             echo -e "${RED}❌ Failed to set project${NC}"
             SETUP_FAILURES+=("Failed to set project: $PROJECT_ID")
         fi
-        
+
         # Configure Docker credential helper (only if Docker is available)
         if command -v docker >/dev/null 2>&1; then
             echo -e "${GREEN}Configuring Docker credential helper for Artifact Registry...${NC}"
@@ -450,301 +462,53 @@ else
     fi
 fi
 
-# Function to check and optionally enable required APIs
-check_required_apis() {
-    echo -e "\n${YELLOW}🔌 Checking required APIs...${NC}"
-    
-    local apis=(
-        "secretmanager.googleapis.com" 
-        "cloudbuild.googleapis.com"
-        "run.googleapis.com"
-        "artifactregistry.googleapis.com"
-    )
-    
-    local enable_apis=${ENABLE_APIS:-"false"}  # Set to "true" to auto-enable APIs
-    
-    for api in "${apis[@]}"; do
-        if $GCLOUD_CMD services list --enabled --filter="name:$api" --format="value(name)" 2>/dev/null | grep -q "$api"; then
-            echo -e "${GREEN}✅ $api enabled${NC}"
-        else
-            echo -e "${RED}❌ $api not enabled${NC}"
-            
-            if [ "$enable_apis" = "true" ]; then
-                echo -e "${BLUE}Attempting to enable $api...${NC}"
-                if $GCLOUD_CMD services enable "$api" --quiet 2>/dev/null; then
-                    echo -e "${GREEN}✅ Successfully enabled $api${NC}"
-                else
-                    echo -e "${RED}❌ Failed to enable $api${NC}"
-                    SETUP_FAILURES+=("Failed to enable API: $api")
-                fi
-            else
-                echo -e "${YELLOW}💡 To enable: gcloud services enable $api --project=$PROJECT_ID${NC}"
-                SETUP_FAILURES+=("API not enabled: $api")
-            fi
-        fi
-    done
-    
-    if [ "$enable_apis" = "false" ] && [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
-        echo -e "\n${YELLOW}💡 To auto-enable APIs, run with: ENABLE_APIS=true ./terragon-setup.sh${NC}"
-    fi
-}
-
-# Function to check service account permissions
-check_service_account_permissions() {
-    echo -e "\n${YELLOW}🔐 Checking service account permissions...${NC}"
-    
-    local service_account_email
-    service_account_email=$($GCLOUD_CMD auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null)
-    
-    if [ -n "$service_account_email" ]; then
-        echo -e "${BLUE}Active service account: $service_account_email${NC}"
-        
-        # Check if service account can list enabled services (basic project access)
-        if $GCLOUD_CMD services list --enabled --limit=1 --format="value(name)" >/dev/null 2>&1; then
-            echo -e "${GREEN}✅ Service account has basic project access${NC}"
-        else
-            echo -e "${RED}❌ Service account lacks basic project access${NC}"
-            SETUP_FAILURES+=("Service account lacks basic project access")
-        fi
-    else
-        echo -e "${RED}❌ No active service account found${NC}"
-        SETUP_FAILURES+=("No active service account")
-    fi
-}
-
-# Only run tests if no critical failures occurred
-if [ "$CRITICAL_FAILURE" = false ]; then
-    echo -e "\n${YELLOW}🔍 Pre-test validation...${NC}"
-
-    # Validate PROJECT_ID is not empty
-    if [ -z "$PROJECT_ID" ]; then
-        echo -e "${RED}❌ PROJECT_ID is empty${NC}"
-        SETUP_FAILURES+=("PROJECT_ID not set or extracted")
-        CRITICAL_FAILURE=true
-    fi
-
-    # Test basic gcloud connectivity
-    if ! $GCLOUD_CMD auth list --filter=status:ACTIVE --format='value(account)' >/dev/null 2>&1; then
-        echo -e "${RED}❌ No active gcloud authentication found${NC}"
-        SETUP_FAILURES+=("No active gcloud authentication")
-        CRITICAL_FAILURE=true
-    fi
-
-    # Run API and permission checks if no critical failures
-    if [ "$CRITICAL_FAILURE" = false ]; then
-        check_required_apis
-        check_service_account_permissions
-    fi
-fi
-
-# Only run tests if no critical failures occurred
-if [ "$CRITICAL_FAILURE" = false ]; then
-    if [ "$PARALLEL_OPERATIONS" = "true" ]; then
-        echo -e "\n${GREEN}🧪 Running Google Cloud permission tests (fast mode)...${NC}"
-    else
-        echo -e "\n${GREEN}🧪 Running Google Cloud permission tests...${NC}"
-    fi
-    
-    # Test 1: Basic authentication
-    run_test "Basic Authentication" \
-        "$GCLOUD_CMD auth list --filter=status:ACTIVE --format='value(account)' | grep -q 'terragon-deploy@'" \
-        "true"
-
-    # Core permission tests (essential)
-    if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-        echo -e "\n${BLUE}🏗️  Testing Cloud Build Permissions${NC}"
-    fi
-    run_test "Cloud Build - List builds" \
-        "$GCLOUD_CMD builds list --limit=1 --format='value(id)'" \
-        "true"
-
-    if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-        echo -e "\n${BLUE}🏃 Testing Cloud Run Permissions${NC}"
-    fi
-    run_test "Cloud Run - List regions" \
-        "$GCLOUD_CMD run regions list --format='value(name)'" \
-        "true"
-
-    if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-        echo -e "\n${BLUE}📦 Testing Artifact Registry Permissions${NC}"
-    fi
-    run_test "Artifact Registry - List locations" \
-        "$GCLOUD_CMD artifacts locations list --format='value(name)'" \
-        "true"
-
-    if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-        echo -e "\n${BLUE}🔒 Testing Secret Manager Permissions${NC}"
-    fi
-    run_test "Secret Manager - List secrets" \
-        "$GCLOUD_CMD secrets list --format='value(name)'" \
-        "true"
-
-    # Extended tests (only if not in minimal mode)
-    if [ "$MINIMAL_INSTALL" = "false" ]; then
-        run_test "Cloud Build - List repositories" \
-            "$GCLOUD_CMD source repos list --format='value(name)'" \
-            "true"
-
-        run_test "Cloud Run - List services" \
-            "$GCLOUD_CMD run services list --format='value(metadata.name)'" \
-            "true"
-
-        run_test "Artifact Registry - List repositories" \
-            "$GCLOUD_CMD artifacts repositories list --format='value(name)'" \
-            "true"
-
-        if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-            echo -e "\n${BLUE}💾 Testing Storage Permissions${NC}"
-        fi
-        run_test "Storage - List buckets" \
-            "$GCLOUD_CMD storage ls --format='value(name)'" \
-            "true"
-
-        if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-            echo -e "\n${BLUE}⚙️  Testing Compute Engine Permissions${NC}"
-        fi
-        run_test "Compute - List zones" \
-            "$GCLOUD_CMD compute zones list --format='value(name)' --limit=1" \
-            "true"
-
-        if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-            echo -e "\n${BLUE}👥 Testing IAM Permissions${NC}"
-        fi
-        run_test "IAM - List service accounts" \
-            "$GCLOUD_CMD iam service-accounts list --format='value(email)'" \
-            "true"
-    fi
-
-    # Advanced tests - Only run if not minimal mode
-    if [ "$MINIMAL_INSTALL" = "false" ]; then
-        if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-            echo -e "\n${BLUE}🧪 Advanced Permission Tests${NC}"
-        fi
-
-        # Test creating a dummy secret (and clean up)
-        TEST_SECRET_NAME="terragon-test-secret-$(date +%s)"
-        if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-            echo -e "\n${YELLOW}Testing: Create and delete test secret${NC}"
-        fi
-        if echo "test-value" | $GCLOUD_CMD secrets create "$TEST_SECRET_NAME" --data-file=- --quiet 2>/dev/null; then
-            if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-                echo -e "${GREEN}✅ Secret creation successful${NC}"
-            fi
-            if $GCLOUD_CMD secrets delete "$TEST_SECRET_NAME" --quiet 2>/dev/null; then
-                if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-                    echo -e "${GREEN}✅ Secret deletion successful${NC}"
-                fi
-                ((TESTS_PASSED += 2))
-            else
-                if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-                    echo -e "${RED}❌ Secret deletion failed${NC}"
-                fi
-                ((TESTS_FAILED++))
-                FAILED_TESTS+=("Secret deletion")
-            fi
-        else
-            if [ "$PARALLEL_OPERATIONS" = "false" ]; then
-                echo -e "${RED}❌ Secret creation failed${NC}"
-            fi
-            ((TESTS_FAILED++))
-            FAILED_TESTS+=("Secret creation")
-        fi
-
-        # Test quota and limits (minimal check)
-        run_test "Project Info Access" \
-            "$GCLOUD_CMD compute project-info describe --format='value(name)'" \
-            "true"
-    fi
-
-    # Docker test (quick check)
-    if command -v docker >/dev/null 2>&1; then
-        if [ "$PARALLEL_OPERATIONS" = "true" ]; then
-            printf "%-40s" "Docker credential helper..."
-            if docker --version >/dev/null 2>&1; then
-                echo -e "${GREEN}✅ PASS${NC}"
-                ((TESTS_PASSED++))
-            else
-                echo -e "${YELLOW}⚠️  SKIP${NC}"
-            fi
-        else
-            echo -e "\n${YELLOW}Testing: Docker credential helper verification${NC}"
-            if docker --version >/dev/null 2>&1; then
-                echo -e "${GREEN}✅ Docker available and credential helper configured${NC}"
-                ((TESTS_PASSED++))
-            else
-                echo -e "${YELLOW}⚠️  Docker not available for testing${NC}"
-            fi
-        fi
-    fi
-fi
-
-
 # Calculate runtime
 END_TIME=$(date +%s)
 RUNTIME=$((END_TIME - START_TIME))
 
-# Summary
+# Setup Summary
 echo -e "\n=================================================================="
-echo -e "${BLUE}📋 Complete Test Summary${NC}"
+echo -e "${BLUE}📋 Setup Complete${NC}"
 echo -e "${BLUE}⏱️  Total Runtime: ${RUNTIME} seconds${NC}"
 
 # Setup failures summary
 if [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
-    echo -e "\n${RED}❌ Setup Failures (${#SETUP_FAILURES[@]}):${NC}"
+    echo -e "\n${RED}❌ Setup Issues (${#SETUP_FAILURES[@]}):${NC}"
     for failure in "${SETUP_FAILURES[@]}"; do
         echo -e "  • $failure"
     done
 fi
 
-# Test results summary
-TOTAL_TESTS=$((TESTS_PASSED + TESTS_FAILED))
-echo -e "\n${BLUE}🧪 Test Results:${NC}"
-echo -e "  Total Tests Run: $TOTAL_TESTS"
-echo -e "  ${GREEN}Passed: $TESTS_PASSED${NC}"
-echo -e "  ${RED}Failed: $TESTS_FAILED${NC}"
-
-if [ $TESTS_FAILED -gt 0 ]; then
-    echo -e "\n${RED}❌ Failed Tests:${NC}"
-    for failed_test in "${FAILED_TESTS[@]}"; do
-        echo -e "  • $failed_test"
-    done
-fi
-
 # Overall status
-echo -e "\n${BLUE}📊 Overall Status:${NC}"
+echo -e "\n${BLUE}📊 Setup Status:${NC}"
 if [ "$CRITICAL_FAILURE" = true ]; then
-    echo -e "${RED}❌ CRITICAL FAILURES DETECTED${NC}"
-    echo -e "   Critical setup issues prevented testing. Review setup failures above."
-elif [ $TESTS_FAILED -eq 0 ] && [ ${#SETUP_FAILURES[@]} -eq 0 ]; then
-    echo -e "${GREEN}🎉 ALL TESTS PASSED! Service account is properly configured.${NC}"
-    echo -e "${GREEN}✅ Ready for deployment operations${NC}"
-elif [ $TESTS_FAILED -eq 0 ] && [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
-    echo -e "${YELLOW}⚠️  PARTIAL SUCCESS${NC}"
-    echo -e "   All tests passed, but some setup steps failed. Review setup failures above."
+    echo -e "${RED}❌ CRITICAL SETUP FAILURES${NC}"
+    echo -e "   Critical setup issues detected. Review issues above."
+elif [ ${#SETUP_FAILURES[@]} -eq 0 ]; then
+    echo -e "${GREEN}🎉 SETUP COMPLETED SUCCESSFULLY!${NC}"
+    echo -e "${GREEN}✅ Google Cloud CLI installed (minimal)${NC}"
+    echo -e "${GREEN}✅ Google Gemini CLI installed${NC}"
+    echo -e "${GREEN}✅ Service account authentication configured${NC}"
+    echo -e "${GREEN}✅ Ready for development operations${NC}"
 else
-    echo -e "${RED}❌ SOME TESTS FAILED${NC}"
-    echo -e "   Review failed tests and setup failures above."
+    echo -e "${YELLOW}⚠️  SETUP COMPLETED WITH WARNINGS${NC}"
+    echo -e "   Some setup steps had issues. Review warnings above."
 fi
 
-# Next steps (only if some level of success)
+# Next steps
 if [ "$CRITICAL_FAILURE" = false ]; then
-    echo -e "\n${BLUE}💡 Next steps:${NC}"
-    if [ -n "$GCLOUD_CMD" ] && [ -n "$PROJECT_ID" ]; then
-        echo "  • Deploy with Cloud Build: $GCLOUD_CMD builds submit --tag gcr.io/$PROJECT_ID/my-app ."
-        echo "  • Create Cloud Run service: $GCLOUD_CMD run deploy --image gcr.io/$PROJECT_ID/my-app"
-        echo "  • Push to Artifact Registry: docker push REGION-docker.pkg.dev/$PROJECT_ID/REPO/IMAGE"
-        echo "  • Manage secrets: $GCLOUD_CMD secrets create my-secret --data-file=-"
+    echo -e "\n${BLUE}💡 Tools installed and ready to use:${NC}"
+    if [ -n "$GCLOUD_CMD" ]; then
+        echo "  • Google Cloud CLI: $GCLOUD_CMD --version"
     fi
-fi
-
-# Troubleshooting (if any issues)
-if [ $TESTS_FAILED -gt 0 ] || [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
-    echo -e "\n${YELLOW}🔧 Troubleshooting suggestions:${NC}"
-    echo "  • Verify all required APIs are enabled"
-    echo "  • Check IAM roles are properly assigned"
-    echo "  • Ensure service account key is valid and not expired"
-    echo "  • Run setup-service-account.sh again if needed"
-    echo "  • Check network connectivity and firewall settings"
+    echo "  • Google Gemini CLI: Available via npm (@google/generative-ai)"
+    if [ -n "$PROJECT_ID" ]; then
+        echo "  • Project configured: $PROJECT_ID"
+        echo "  • Example commands:"
+        echo "    - $GCLOUD_CMD builds submit --tag gcr.io/$PROJECT_ID/my-app ."
+        echo "    - $GCLOUD_CMD run deploy --image gcr.io/$PROJECT_ID/my-app"
+        echo "    - $GCLOUD_CMD secrets create my-secret --data-file=-"
+    fi
 fi
 
 # Clean up temporary key file if created
@@ -755,8 +519,8 @@ fi
 # Exit with appropriate code
 if [ "$CRITICAL_FAILURE" = true ]; then
     exit 2  # Critical failure
-elif [ $TESTS_FAILED -gt 0 ] || [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
-    exit 1  # Some failures
+elif [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
+    exit 1  # Some warnings
 else
     exit 0  # All good
 fi

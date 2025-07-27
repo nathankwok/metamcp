@@ -22,6 +22,8 @@ print_header() { echo -e "${PURPLE}[DEPLOY]${NC} $1"; }
 PROJECT_ID=${PROJECT_ID:-""}
 REGION=${REGION:-"us-central1"}
 ENVIRONMENT=${ENVIRONMENT:-"production"}
+BACKEND_URL=${BACKEND_URL:-"https://metamcp-backend-555166161772.us-central1.run.app"}
+FRONTEND_URL=${FRONTEND_URL:-"https://metamcp-frontend-555166161772.us-central1.run.app"}
 SUPABASE_CONNECTION_STRING=${SUPABASE_CONNECTION_STRING:-""}
 
 # Service names
@@ -143,7 +145,6 @@ enable_apis() {
     print_status "Enabling required Google Cloud APIs..."
     
     local apis=(
-        "cloudbuild.googleapis.com"
         "run.googleapis.com"
         "secretmanager.googleapis.com"
         "compute.googleapis.com"
@@ -279,25 +280,19 @@ deploy_backend() {
     
     local backend_image="gcr.io/$PROJECT_ID/metamcp-backend:$GIT_SHORT_SHA"
     
-    # Get frontend URL first (needed for APP_URL environment variable)
-    local frontend_url=$(gcloud run services describe "$FRONTEND_SERVICE" \
-        --region="$REGION" \
-        --project="$PROJECT_ID" \
-        --format='value(status.url)' 2>/dev/null || echo "https://$FRONTEND_SERVICE-$PROJECT_ID.${REGION}.run.app")
-    
     print_status "Deploying $BACKEND_SERVICE with image: $backend_image..."
-    print_status "Using frontend URL for APP_URL: $frontend_url"
+    print_status "Using backend URL for APP_URL: $BACKEND_URL"
     gcloud run deploy "$BACKEND_SERVICE" \
         --image="$backend_image" \
         --region="$REGION" \
         --project="$PROJECT_ID" \
         --platform=managed \
-        --set-env-vars="NODE_ENV=production,APP_URL=$frontend_url" \
+        --set-env-vars="NODE_ENV=production,APP_URL=$BACKEND_URL" \
         --set-secrets="DATABASE_URL=metamcp-database-url-production:latest,BETTER_AUTH_SECRET=metamcp-better-auth-secret-production:latest" \
         --memory=1Gi \
         --cpu=1000m \
         --min-instances=0 \
-        --max-instances=5 \
+        --max-instances=1 \
         --concurrency=50 \
         --timeout=300 \
         --port=12009 \
@@ -331,11 +326,8 @@ deploy_frontend() {
     
     local frontend_image="gcr.io/$PROJECT_ID/metamcp-frontend:$GIT_SHORT_SHA"
     
-    # Get frontend URL first (in case service already exists)
-    FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
-        --region="$REGION" \
-        --project="$PROJECT_ID" \
-        --format='value(status.url)' 2>/dev/null || echo "")
+    # Use hardcoded frontend URL like in local version
+    FRONTEND_URL="https://metamcp-frontend-555166161772.us-central1.run.app"
     
     # If no existing service, we'll get the URL after deployment
     if [[ -z "$FRONTEND_URL" ]]; then
@@ -359,16 +351,6 @@ deploy_frontend() {
         --allow-unauthenticated \
         --quiet
     
-    # Get the actual frontend URL after deployment
-    FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
-        --region="$REGION" \
-        --project="$PROJECT_ID" \
-        --format='value(status.url)')
-    
-    if [[ -z "$FRONTEND_URL" ]]; then
-        print_error "Failed to get frontend service URL"
-        exit 1
-    fi
     
     print_success "Frontend deployed successfully ✅"
     print_status "Frontend URL: $FRONTEND_URL"
@@ -419,7 +401,9 @@ show_deployment_summary() {
     echo ""
     echo "⚡ Performance (Free Tier Optimized):"
     echo "   Frontend: 512Mi RAM, 1 vCPU, 0-5 instances"
-    echo "   Backend:  1Gi RAM, 1 vCPU, 0-5 instances"
+    echo "   Backend:  1Gi RAM, 1 vCPU, 0-1 instances"
+    echo ""
+    echo "🐳 Build Method: Cloud Build"
     echo ""
     print_header "🚀 Next Steps"
     print_header "============="
@@ -515,7 +499,6 @@ build_images() {
 main() {
     check_prerequisites
     load_configuration
-    enable_apis
     create_secrets
     run_migrations
     build_backend_image
@@ -532,7 +515,6 @@ case "${1:-}" in
         print_status "Deploying backend service only..."
         check_prerequisites
         load_configuration
-        enable_apis
         create_secrets
         run_migrations
         build_backend_image
@@ -552,7 +534,6 @@ case "${1:-}" in
         print_status "Building images only..."
         check_prerequisites
         load_configuration
-        enable_apis
         build_backend_image
         build_frontend_image
         print_success "Build completed!"
@@ -561,7 +542,6 @@ case "${1:-}" in
         print_status "Creating secrets only..."
         check_prerequisites
         load_configuration
-        enable_apis
         create_secrets
         print_success "Secrets created!"
         ;;

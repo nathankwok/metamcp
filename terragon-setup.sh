@@ -512,6 +512,54 @@ if [ "$CRITICAL_FAILURE" = false ]; then
     fi
 fi
 
+# Ensure gcloud is in PATH for future sessions
+if [ "$CRITICAL_FAILURE" = false ] && command -v gcloud >/dev/null 2>&1; then
+    echo -e "\n${GREEN}🔧 Ensuring gcloud is available in PATH for future sessions...${NC}"
+    
+    # Determine the installation directory
+    GCLOUD_BIN_DIR=$(dirname "$(command -v gcloud)")
+    GCLOUD_SDK_DIR=$(dirname "$GCLOUD_BIN_DIR")
+    
+    echo -e "${BLUE}gcloud installation found at: $GCLOUD_SDK_DIR${NC}"
+    
+    # Add to current shell session
+    export PATH="$GCLOUD_BIN_DIR:$PATH"
+    
+    # Check if we need to add to shell profiles
+    PATH_EXPORT_LINE="export PATH=\"$GCLOUD_BIN_DIR:\$PATH\""
+    
+    # For root users, add to /etc/profile
+    if [ "$EUID" -eq 0 ]; then
+        if ! grep -q "$GCLOUD_BIN_DIR" /etc/profile 2>/dev/null; then
+            echo "$PATH_EXPORT_LINE" >> /etc/profile
+            echo -e "${GREEN}✅ Added gcloud to system-wide PATH (/etc/profile)${NC}"
+        else
+            echo -e "${BLUE}gcloud already in system-wide PATH${NC}"
+        fi
+    else
+        # For non-root users, add to user shell profiles
+        PROFILES_UPDATED=0
+        for profile in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.profile"; do
+            if [ -f "$profile" ]; then
+                if ! grep -q "$GCLOUD_BIN_DIR" "$profile"; then
+                    echo "$PATH_EXPORT_LINE" >> "$profile"
+                    PROFILES_UPDATED=$((PROFILES_UPDATED + 1))
+                fi
+            fi
+        done
+        
+        if [ $PROFILES_UPDATED -gt 0 ]; then
+            echo -e "${GREEN}✅ Added gcloud to PATH in $PROFILES_UPDATED shell profile(s)${NC}"
+        else
+            echo -e "${BLUE}gcloud already in user shell profiles${NC}"
+        fi
+    fi
+    
+    # Also add to current environment for immediate use
+    echo -e "${BLUE}Current session PATH updated${NC}"
+    echo -e "${YELLOW}Note: New terminal sessions will automatically have gcloud in PATH${NC}"
+fi
+
 # Clean up temporary key file if created
 if [ "$TEMP_KEY_FILE" = true ] && [ -f "$SERVICE_ACCOUNT_KEY_FILE" ]; then
     rm -f "$SERVICE_ACCOUNT_KEY_FILE"

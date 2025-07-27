@@ -297,7 +297,8 @@ echo -e "\n${YELLOW}🔐 Setting up service account authentication...${NC}"
 if [ -n "$SERVICE_ACCOUNT_KEY_JSON" ]; then
     echo -e "${BLUE}Using service account key from environment variable...${NC}"
     SERVICE_ACCOUNT_KEY_FILE="/tmp/service-account-key-$$.json"
-    echo "$SERVICE_ACCOUNT_KEY_JSON" > "$SERVICE_ACCOUNT_KEY_FILE"
+    # Write key to file without echoing contents to stdout
+    printf '%s' "$SERVICE_ACCOUNT_KEY_JSON" > "$SERVICE_ACCOUNT_KEY_FILE" 2>/dev/null
     TEMP_KEY_FILE=true
 elif [ -f "$SERVICE_ACCOUNT_KEY_FILE" ]; then
     echo -e "${BLUE}Using existing service account key file: $SERVICE_ACCOUNT_KEY_FILE${NC}"
@@ -331,11 +332,11 @@ print(key_data.get('project_id', ''))
 fi
 
 echo -e "${BLUE}Project ID: $PROJECT_ID${NC}"
-echo -e "${BLUE}Service Account Key: $SERVICE_ACCOUNT_KEY_FILE${NC}"
+echo -e "${BLUE}Service Account Key File: $SERVICE_ACCOUNT_KEY_FILE${NC}"
 
 # Authenticate with service account
 echo -e "\n${YELLOW}Authenticating with service account...${NC}"
-$GCLOUD_CMD auth activate-service-account --key-file="$SERVICE_ACCOUNT_KEY_FILE" --quiet
+$GCLOUD_CMD auth activate-service-account --key-file="$SERVICE_ACCOUNT_KEY_FILE" --quiet 2>/dev/null
 
 # Set project
 $GCLOUD_CMD config set project "$PROJECT_ID" --quiet
@@ -487,7 +488,6 @@ if [ $TESTS_FAILED -eq 0 ]; then
         echo "  • Use Gemini CLI: gemini --help for AI assistance"
     fi
 
-    exit 0
 else
     echo -e "\n${RED}❌ Some tests failed. Please check the following:${NC}"
     for failed_test in "${FAILED_TESTS[@]}"; do

@@ -301,6 +301,12 @@ else
     case $INSTALL_GCLOUD in
         "yes")
             install_gcloud_cli
+            # Ensure gcloud is in PATH for current session
+            if [ -d "/opt/google-cloud-sdk/bin" ]; then
+                export PATH="/opt/google-cloud-sdk/bin:$PATH"
+            elif [ -d "$HOME/google-cloud-sdk/bin" ]; then
+                export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+            fi
             GCLOUD_CMD="gcloud"
             ;;
         "no")
@@ -311,6 +317,12 @@ else
         "auto")
             echo -e "${BLUE}Installing Google Cloud CLI automatically...${NC}"
             if install_gcloud_cli; then
+                # Ensure gcloud is in PATH for current session
+                if [ -d "/opt/google-cloud-sdk/bin" ]; then
+                    export PATH="/opt/google-cloud-sdk/bin:$PATH"
+                elif [ -d "$HOME/google-cloud-sdk/bin" ]; then
+                    export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+                fi
                 GCLOUD_CMD="gcloud"
             else
                 SETUP_FAILURES+=("Google Cloud CLI installation failed")

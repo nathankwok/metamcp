@@ -327,11 +327,13 @@ else
     esac
 fi
 
+#export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+
 export PATH="/opt/google-cloud-sdk/bin:$PATH"
-export PATH="$HOME/google-cloud-sdk/bin:$PATH"
 echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.bashrc
-echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.profile
-echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> /etc/profile
+
+#echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.profile
+#echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> /etc/profile
 
 # Check if Gemini CLI should be installed
 echo -e "\n${YELLOW}🤖 Checking Google Gemini CLI availability...${NC}"
@@ -579,5 +581,6 @@ if [ "$CRITICAL_FAILURE" = true ]; then
 elif [ ${#SETUP_FAILURES[@]} -gt 0 ]; then
     exit 1  # Some warnings
 else
+    source ~/.bashrc
     exit 0  # All good
 fi

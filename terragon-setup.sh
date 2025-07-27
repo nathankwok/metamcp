@@ -332,7 +332,7 @@ fi
 export PATH="/opt/google-cloud-sdk/bin:$PATH"
 echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.bashrc
 
-#echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.profile
+echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.profile
 #echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> /etc/profile
 
 # Check if Gemini CLI should be installed

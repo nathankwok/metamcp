@@ -301,12 +301,8 @@ else
     case $INSTALL_GCLOUD in
         "yes")
             install_gcloud_cli
-            # Ensure gcloud is in PATH for current session
-            if [ -d "/opt/google-cloud-sdk/bin" ]; then
-                export PATH="/opt/google-cloud-sdk/bin:$PATH"
-            elif [ -d "$HOME/google-cloud-sdk/bin" ]; then
-                export PATH="$HOME/google-cloud-sdk/bin:$PATH"
-            fi
+            export PATH="/opt/google-cloud-sdk/bin:$PATH"
+            export PATH="$HOME/google-cloud-sdk/bin:$PATH"
             GCLOUD_CMD="gcloud"
             ;;
         "no")
@@ -330,6 +326,12 @@ else
             ;;
     esac
 fi
+
+export PATH="/opt/google-cloud-sdk/bin:$PATH"
+export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.bashrc
+echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.profile
+echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> /etc/profile
 
 # Check if Gemini CLI should be installed
 echo -e "\n${YELLOW}🤖 Checking Google Gemini CLI availability...${NC}"

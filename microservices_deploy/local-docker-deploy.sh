@@ -398,10 +398,11 @@ deploy_frontend() {
     local frontend_image="gcr.io/$PROJECT_ID/$FRONTEND_SERVICE:$GIT_SHORT_SHA"
     
     # Get frontend URL first (in case service already exists)
-    FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
-        --region="$REGION" \
-        --project="$PROJECT_ID" \
-        --format='value(status.url)' 2>/dev/null || echo "")
+#    FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
+#        --region="$REGION" \
+#        --project="$PROJECT_ID" \
+#        --format='value(status.url)' 2>/dev/null || echo "")
+    FRONTEND_URL="https://metamcp-frontend-555166161772.us-central1.run.app"
     
     # If no existing service, we'll get the URL after deployment
     if [[ -z "$FRONTEND_URL" ]]; then
@@ -425,16 +426,16 @@ deploy_frontend() {
         --allow-unauthenticated \
         --quiet
     
-    # Get the actual frontend URL after deployment
-    FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
-        --region="$REGION" \
-        --project="$PROJECT_ID" \
-        --format='value(status.url)')
-    
-    if [[ -z "$FRONTEND_URL" ]]; then
-        print_error "Failed to get frontend service URL"
-        exit 1
-    fi
+#    # Get the actual frontend URL after deployment
+#    FRONTEND_URL=$(gcloud run services describe "$FRONTEND_SERVICE" \
+#        --region="$REGION" \
+#        --project="$PROJECT_ID" \
+#        --format='value(status.url)')
+#
+#    if [[ -z "$FRONTEND_URL" ]]; then
+#        print_error "Failed to get frontend service URL"
+#        exit 1
+#    fi
     
     print_success "Frontend deployed successfully ✅"
     print_status "Frontend URL: $FRONTEND_URL"

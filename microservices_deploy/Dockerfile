@@ -46,8 +46,8 @@ COPY --from=deps /app/packages ./packages
 # Copy source code
 COPY . .
 
-# Build all packages and apps
-RUN pnpm build
+# Build only frontend and required packages (avoid backend build that might cause issues)
+RUN pnpm run build --filter=@repo/zod-types --filter=@repo/trpc --filter=frontend
 
 # Production runner stage
 FROM base AS runner

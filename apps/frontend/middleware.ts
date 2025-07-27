@@ -86,11 +86,9 @@ export async function middleware(request: NextRequest) {
       "";
 
     // Check if user is authenticated by calling the session endpoint
-    const { data: session } = await betterFetch("/api/auth/get-session", {
-      // this hardcoded is correct, because in same container, we should use localhost, outside url won't work
-      // baseURL: "http://localhost:12009",
-      // baseUrl: "https://metamcp-backend-555166161772.us-central1.run.app",
-      baseUrl: getApiUrl() || process.env.NEXT_PUBLIC_API_URL || `https://metamcp-backend-555166161772.us-central1.run.app`,
+    const apiUrl = getApiUrl() || process.env.NEXT_PUBLIC_API_URL || `https://metamcp-backend-555166161772.us-central1.run.app`;
+    const { data: session } = await betterFetch(`${apiUrl}/api/auth/get-session`, {
+      // Use absolute URL instead of relative path + baseUrl to avoid URL parsing issues
 
 
       headers: {

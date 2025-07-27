@@ -82,8 +82,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./
 COPY --from=builder --chown=nextjs:nodejs /app/pnpm-workspace.yaml ./
 
-# Install production dependencies only
-RUN pnpm install --prod
+# Note: Dependencies already installed and copied from builder stage
+# No need to reinstall since we need the full workspace setup for monorepo
 
 COPY --chown=nextjs:nodejs microservices_deploy/frontend-entrypoint.sh /app/apps/frontend
 RUN chmod +x /app/apps/frontend/frontend-entrypoint.sh

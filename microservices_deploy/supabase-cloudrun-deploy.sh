@@ -19,7 +19,7 @@ print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 print_header() { echo -e "${PURPLE}[DEPLOY]${NC} $1"; }
 
 # Default configuration
-PROJECT_ID=${PROJECT_ID:-""}
+PROJECT_ID=${PROJECT_ID:-"metamcp-12008"}
 REGION=${REGION:-"us-central1"}
 ENVIRONMENT=${ENVIRONMENT:-"production"}
 BACKEND_URL=${BACKEND_URL:-"https://metamcp-backend-555166161772.us-central1.run.app"}

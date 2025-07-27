@@ -287,6 +287,7 @@ run_test() {
     local test_name="$1"
     local test_command="$2"
     local expected_success="$3"  # true/false
+    local error_output=""
 
     if [ "$PARALLEL_OPERATIONS" = "true" ]; then
         # Quick test without verbose output
@@ -323,10 +324,18 @@ run_test() {
             fi
             ((TESTS_PASSED++))
         else
+            # Capture error details for debugging
+            error_output=$(timeout 30s bash -c "$test_command" 2>&1 | head -3)
             if [ "$PARALLEL_OPERATIONS" = "true" ]; then
                 echo -e "${RED}❌ FAIL${NC}"
+                if [ "$DEBUG_OUTPUT" = "true" ] && [ -n "$error_output" ]; then
+                    echo -e "    ${YELLOW}Error: $error_output${NC}"
+                fi
             else
                 echo -e "${RED}❌ FAIL${NC}"
+                if [ -n "$error_output" ]; then
+                    echo -e "${YELLOW}Error details: $error_output${NC}"
+                fi
             fi
             ((TESTS_FAILED++))
             FAILED_TESTS+=("$test_name")
@@ -361,15 +370,39 @@ fi
 
 # Extract project ID from key file if not provided
 if [ -z "$PROJECT_ID" ]; then
-    if command -v python3 >/dev/null 2>&1; then
+    echo -e "${BLUE}Extracting project ID from service account key...${NC}"
+    if [ ! -f "$SERVICE_ACCOUNT_KEY_FILE" ]; then
+        echo -e "${RED}Error: Service account key file not found: $SERVICE_ACCOUNT_KEY_FILE${NC}"
+        SETUP_FAILURES+=("Service account key file not found")
+        CRITICAL_FAILURE=true
+    elif command -v python3 >/dev/null 2>&1; then
         PROJECT_ID=$(python3 -c "
-import json
-with open('$SERVICE_ACCOUNT_KEY_FILE', 'r') as f:
-    key_data = json.load(f)
-print(key_data.get('project_id', ''))
+import json, sys
+try:
+    with open('$SERVICE_ACCOUNT_KEY_FILE', 'r') as f:
+        key_data = json.load(f)
+    project_id = key_data.get('project_id', '')
+    if not project_id:
+        print('ERROR: project_id not found in key file', file=sys.stderr)
+        sys.exit(1)
+    print(project_id)
+except Exception as e:
+    print(f'ERROR: {e}', file=sys.stderr)
+    sys.exit(1)
 " 2>/dev/null)
+        
+        if [ $? -ne 0 ] || [ -z "$PROJECT_ID" ]; then
+            echo -e "${RED}Error: Failed to extract project_id from service account key${NC}"
+            SETUP_FAILURES+=("Failed to extract project_id from service account key")
+            CRITICAL_FAILURE=true
+        fi
     elif command -v jq >/dev/null 2>&1; then
-        PROJECT_ID=$(jq -r '.project_id' "$SERVICE_ACCOUNT_KEY_FILE")
+        PROJECT_ID=$(jq -r '.project_id // empty' "$SERVICE_ACCOUNT_KEY_FILE" 2>/dev/null)
+        if [ -z "$PROJECT_ID" ]; then
+            echo -e "${RED}Error: project_id not found in service account key${NC}"
+            SETUP_FAILURES+=("project_id not found in service account key")
+            CRITICAL_FAILURE=true
+        fi
     else
         echo -e "${RED}Error: Cannot extract project ID. Install python3 or jq, or set PROJECT_ID environment variable.${NC}"
         SETUP_FAILURES+=("Cannot extract project ID - missing python3 or jq")
@@ -413,6 +446,76 @@ else
         echo -e "${RED}❌ Service account authentication failed${NC}"
         SETUP_FAILURES+=("Service account authentication failed")
         CRITICAL_FAILURE=true
+    fi
+fi
+
+# Function to check required APIs
+check_required_apis() {
+    echo -e "\n${YELLOW}🔌 Checking required APIs...${NC}"
+    
+    local apis=(
+        "cloudresourcemanager.googleapis.com"
+        "secretmanager.googleapis.com" 
+        "cloudbuild.googleapis.com"
+        "run.googleapis.com"
+        "artifactregistry.googleapis.com"
+    )
+    
+    for api in "${apis[@]}"; do
+        if $GCLOUD_CMD services list --enabled --filter="name:$api" --format="value(name)" 2>/dev/null | grep -q "$api"; then
+            echo -e "${GREEN}✅ $api enabled${NC}"
+        else
+            echo -e "${RED}❌ $api not enabled${NC}"
+            SETUP_FAILURES+=("API not enabled: $api")
+        fi
+    done
+}
+
+# Function to check service account permissions
+check_service_account_permissions() {
+    echo -e "\n${YELLOW}🔐 Checking service account permissions...${NC}"
+    
+    local service_account_email
+    service_account_email=$($GCLOUD_CMD auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null)
+    
+    if [ -n "$service_account_email" ]; then
+        echo -e "${BLUE}Active service account: $service_account_email${NC}"
+        
+        # Check project-level IAM policy
+        if $GCLOUD_CMD projects get-iam-policy "$PROJECT_ID" --format="value(bindings.members)" 2>/dev/null | grep -q "$service_account_email"; then
+            echo -e "${GREEN}✅ Service account found in project IAM policy${NC}"
+        else
+            echo -e "${RED}❌ Service account not found in project IAM policy${NC}"
+            SETUP_FAILURES+=("Service account not in project IAM policy")
+        fi
+    else
+        echo -e "${RED}❌ No active service account found${NC}"
+        SETUP_FAILURES+=("No active service account")
+    fi
+}
+
+# Only run tests if no critical failures occurred
+if [ "$CRITICAL_FAILURE" = false ]; then
+    echo -e "\n${YELLOW}🔍 Pre-test validation...${NC}"
+
+    # Validate PROJECT_ID is not empty
+    if [ -z "$PROJECT_ID" ]; then
+        echo -e "${RED}❌ PROJECT_ID is empty${NC}"
+        SETUP_FAILURES+=("PROJECT_ID not set or extracted")
+        CRITICAL_FAILURE=true
+    fi
+
+    # Test basic gcloud connectivity
+    if ! $GCLOUD_CMD auth list --filter=status:ACTIVE --format='value(account)' >/dev/null 2>&1; then
+        echo -e "${RED}❌ No active gcloud authentication found${NC}"
+        SETUP_FAILURES+=("No active gcloud authentication")
+        CRITICAL_FAILURE=true
+    fi
+
+    # Run API and permission checks if no critical failures
+    if [ "$CRITICAL_FAILURE" = false ]; then
+        check_required_apis
+        check_service_account_permissions
     fi
 fi
 

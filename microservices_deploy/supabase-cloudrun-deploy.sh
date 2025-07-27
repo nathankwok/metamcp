@@ -499,7 +499,6 @@ build_images() {
 main() {
     check_prerequisites
     load_configuration
-    enable_apis
     create_secrets
     run_migrations
     build_backend_image
@@ -516,7 +515,6 @@ case "${1:-}" in
         print_status "Deploying backend service only..."
         check_prerequisites
         load_configuration
-        enable_apis
         create_secrets
         run_migrations
         build_backend_image
@@ -536,7 +534,6 @@ case "${1:-}" in
         print_status "Building images only..."
         check_prerequisites
         load_configuration
-        enable_apis
         build_backend_image
         build_frontend_image
         print_success "Build completed!"
@@ -545,7 +542,6 @@ case "${1:-}" in
         print_status "Creating secrets only..."
         check_prerequisites
         load_configuration
-        enable_apis
         create_secrets
         print_success "Secrets created!"
         ;;

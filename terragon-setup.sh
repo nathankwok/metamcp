@@ -432,6 +432,7 @@ if [ "$CRITICAL_FAILURE" = true ]; then
 else
     # Authenticate with service account
     echo -e "\n${YELLOW}Authenticating with service account...${NC}"
+    # 2. Authenticate with service account
     if $GCLOUD_CMD auth activate-service-account --key-file="$SERVICE_ACCOUNT_KEY_FILE" --quiet 2>/dev/null; then
         echo -e "${GREEN}✅ Service account authentication successful${NC}"
 

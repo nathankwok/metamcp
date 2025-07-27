@@ -331,9 +331,14 @@ else
     esac
 fi
 
+export PATH="/opt/google-cloud-sdk/bin:$PATH"
+echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.bashrc
+echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> ~/.profile
+echo 'export PATH="/opt/google-cloud-sdk/bin:$PATH"' >> /etc/profile
+
 # Check if Gemini CLI should be installed
 echo -e "\n${YELLOW}🤖 Checking Google Gemini CLI availability...${NC}"
-if npm list -g @google/generative-ai >/dev/null 2>&1 || npm list @google/generative-ai >/dev/null 2>&1; then
+if npm list -g @google/gemini-cli >/dev/null 2>&1 || npm list @google/generative-ai >/dev/null 2>&1; then
     echo -e "${GREEN}✅ Google Gemini CLI package found${NC}"
 else
     echo -e "${YELLOW}❓ Google Gemini CLI not found${NC}"

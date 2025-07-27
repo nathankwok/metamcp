@@ -1,6 +1,6 @@
 # Frontend-only Dockerfile
 # Use the official uv image as base
-FROM ghcr.io/astral-sh/uv:debian AS base
+FROM --platform=linux/amd64 ghcr.io/astral-sh/uv:debian AS base
 
 # Install Node.js and pnpm directly
 RUN apt-get update && apt-get install -y \
@@ -85,6 +85,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/pnpm-workspace.yaml ./
 # Install production dependencies only
 RUN pnpm install --prod
 
+COPY --chown=nextjs:nodejs microservices_deploy/frontend-entrypoint.sh /app/apps/frontend
+RUN chmod +x /app/apps/frontend/frontend-entrypoint.sh
+
 USER nextjs
 
 # Expose frontend port
@@ -96,4 +99,5 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 # Start frontend server
 WORKDIR /app/apps/frontend
-CMD ["pnpm", "start"]
+#CMD ["pnpm", "start"]
+CMD ["./frontend-entrypoint.sh"]

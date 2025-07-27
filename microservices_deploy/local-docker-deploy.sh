@@ -186,8 +186,8 @@ create_secrets() {
     print_status "Creating/updating database connection secret..."
     if gcloud secrets describe metamcp-database-url-production --project="$PROJECT_ID" &>/dev/null; then
         print_status "Secret exists, adding new version..."
-        echo "$SUPABASE_CONNECTION_STRING" | gcloud secrets versions add metamcp-database-url-production \
-            --data-file=- --project="$PROJECT_ID"
+#        echo "$SUPABASE_CONNECTION_STRING" | gcloud secrets versions add metamcp-database-url-production \
+#            --data-file=- --project="$PROJECT_ID"
     else
         print_status "Creating new secret..."
         echo "$SUPABASE_CONNECTION_STRING" | gcloud secrets create metamcp-database-url-production \
@@ -274,12 +274,12 @@ run_migrations() {
 build_backend_image() {
     print_status "Building backend container image locally..."
     
-    # Check if main Dockerfile exists
-    if [[ ! -f "Dockerfile" ]]; then
-        print_error "Dockerfile not found!"
-        print_error "Make sure you're running this script from the project root directory."
-        exit 1
-    fi
+#    # Check if main Dockerfile.backend exists
+#    if [[ ! -f "Dockerfile.backend" ]]; then
+#        print_error "Dockerfile.backend not found!"
+#        print_error "Make sure you're running this script from the project root directory."
+#        exit 1
+#    fi
     
     local backend_image="gcr.io/$PROJECT_ID/$BACKEND_SERVICE:$GIT_SHORT_SHA"
     local backend_latest="gcr.io/$PROJECT_ID/$BACKEND_SERVICE:latest"
@@ -304,19 +304,19 @@ build_backend_image() {
 build_frontend_image() {
     print_status "Building frontend container image locally..."
     
-    # Check if frontend Dockerfile exists
-    if [[ ! -f "microservices_deploy/Dockerfile.frontend" ]]; then
-        print_error "microservices_deploy/Dockerfile.frontend not found!"
-        print_error "Make sure you're running this script from the project root directory."
-        exit 1
-    fi
+#    # Check if frontend Dockerfile exists
+#    if [[ ! -f "microservices_deploy/Dockerfile.frontend" ]]; then
+#        print_error "microservices_deploy/Dockerfile.frontend not found!"
+#        print_error "Make sure you're running this script from the project root directory."
+#        exit 1
+#    fi
     
     local frontend_image="gcr.io/$PROJECT_ID/$FRONTEND_SERVICE:$GIT_SHORT_SHA"
     local frontend_latest="gcr.io/$PROJECT_ID/$FRONTEND_SERVICE:latest"
     
     print_status "Building frontend image: $frontend_image"
     docker build \
-        --file=microservices_deploy/Dockerfile.frontend \
+        --file=microservices_deploy/Dockerfile \
         --tag="$frontend_image" \
         --tag="$frontend_latest" \
         .

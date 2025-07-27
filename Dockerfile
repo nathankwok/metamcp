@@ -52,7 +52,7 @@ RUN pnpm build
 FROM base AS runner
 WORKDIR /app
 
-ENV APP_URL=https://metamcp-frontend-pbxnxwryca-uc.a.run.app
+ENV APP_URL=https://metamcp-frontend-555166161772.us-central1.run.app
 ARG SUPABASE_CONNECTION_STRING
 ENV DATABASE_URL=$SUPABASE_CONNECTION_STRING
 ARG AUTH_SECRET

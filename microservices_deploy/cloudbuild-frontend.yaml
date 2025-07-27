@@ -7,7 +7,7 @@ steps:
     id: 'build-frontend'
     args:
       - 'build'
-      - '--file=microservices_deploy/Dockerfile.frontend'
+      - '--file=microservices_deploy/Dockerfile'
       - '--tag=gcr.io/$PROJECT_ID/metamcp-frontend:latest'
       - '--tag=gcr.io/$PROJECT_ID/metamcp-frontend:$SHORT_SHA'
       - '.'

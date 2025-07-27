@@ -4,7 +4,7 @@ set -e
 
 echo "Starting MetaMCP services..."
 
-APP_URL=https://metamcp-frontend-pbxnxwryca-uc.a.run.app
+APP_URL=https://metamcp-frontend-555166161772.us-central1.run.app
 DATABASE_URL=$DATABASE_URL
 BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET
 

@@ -53,7 +53,7 @@ RUN pnpm run build --filter=@repo/zod-types --filter=@repo/trpc --filter=backend
 FROM base AS runner
 WORKDIR /app
 
-ENV APP_URL=https://metamcp-frontend-pbxnxwryca-uc.a.run.app
+ENV APP_URL=https://metamcp-frontend-555166161772.us-central1.run.app
 
 # OCI image labels
 LABEL org.opencontainers.image.source="https://github.com/metatool-ai/metamcp"

@@ -69,6 +69,7 @@ Edit `.env.production` with your actual values. The file now includes all requir
 - **Porkbun API**: Your API key and secret key from Porkbun dashboard
 - **Supabase Database**: Connection details from your Supabase project settings
 - **Authentication**: Generate a secure secret key (minimum 32 characters)
+- **Gemini API**: Your Google Gemini API key for AI assistance (GEMINI_API_KEY)
 - **Docker Configuration**: Set to `true` for production deployment
 
 **Important**: All variables in `.env.production` are now used by the deployment script. You can customize deployment settings like region, instance name, and other parameters directly in the environment file.
@@ -90,12 +91,13 @@ The script provides a step-by-step deployment process with these options:
 - **Step 3**: Networking setup (static IP, firewall rules)
 - **Step 4**: VM instance creation
 - **Step 5**: DNS configuration (enhanced with automatic cleanup)
-- **Step 6**: VM configuration and SSL setup
-- **Step 7**: Node.js and Gemini CLI installation
-- **Step 8**: Application startup (Docker Compose)
-- **Step 9**: Health checks and validation
-- **Step 10**: Final information display
-- **Step 11**: DNS debug and troubleshooting
+- **Step 6**: SSL certificate management
+- **Step 7**: Node.js and Gemini CLI installation (with API key setup)
+- **Step 8**: Environment and production configuration
+- **Step 9**: Application startup (Docker Compose)
+- **Step 10**: Health checks and validation
+- **Step 11**: Final information display
+- **Step 12**: DNS debug and troubleshooting
 
 The script will automatically:
 
@@ -103,9 +105,10 @@ The script will automatically:
 2. Set up Google Cloud infrastructure (VM, static IP, firewall rules)
 3. Clean up existing DNS records and create new A records for your domain and www subdomain
 4. Upload SSL certificates to the VM and configure Nginx with HTTPS
-5. Install Node.js (LTS) and @google/gemini-cli on the VM
-6. Deploy and start the application with production configuration
-7. Perform comprehensive health checks including SSL verification
+5. Install Node.js (LTS) and @google/gemini-cli on the VM with API key configuration
+6. Copy environment variables and production configuration files to the VM
+7. Deploy and start the application with production configuration
+8. Perform comprehensive health checks including SSL verification
 
 ## What Gets Deployed
 
@@ -143,7 +146,7 @@ docker-compose -f docker-compose.prod.yml logs -f
 ```
 
 ### Using Gemini CLI
-The Gemini CLI is installed globally with proper PATH configuration:
+The Gemini CLI is installed globally with proper PATH configuration and automatic API key setup:
 
 ```bash
 # SSH into the VM
@@ -155,17 +158,15 @@ source ~/.profile
 # Check Gemini CLI version
 gemini --version
 
-# Configure with your API key (first time setup)
-gemini config set api-key YOUR_GEMINI_API_KEY
-
-# Use Gemini CLI for development assistance
+# Use Gemini CLI for development assistance (API key already configured)
 gemini ask "How to optimize Node.js performance?"
 ```
 
 **Notes**: 
 - Node.js and Gemini CLI are automatically added to your PATH in `~/.profile` and `~/.bashrc`
+- The GEMINI_API_KEY from your `.env.production` file is automatically configured in the environment
 - If the `gemini` command is not immediately available, run `source ~/.profile` or start a new shell session
-- You'll need to configure the Gemini CLI with your Google AI API key for full functionality
+- The Gemini CLI should work immediately without additional API key configuration
 
 ### Health Checks
 The script automatically verifies:
@@ -178,11 +179,11 @@ The script automatically verifies:
 
 ### DNS Issues and Debugging
 
-The deployment script includes built-in DNS debugging capabilities. Run step 11 to troubleshoot DNS issues:
+The deployment script includes built-in DNS debugging capabilities. Run step 12 to troubleshoot DNS issues:
 
 ```bash
 ./compute_engine_deploy.sh
-# Select option 11 for "DNS Debug & Troubleshooting"
+# Select option 12 for "DNS Debug & Troubleshooting"
 ```
 
 This will:

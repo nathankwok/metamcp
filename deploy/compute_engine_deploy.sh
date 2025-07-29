@@ -424,12 +424,12 @@ step_5_dns_configuration() {
   info "Please allow a few minutes for DNS propagation..."
 }
 
-# Function: step_6_vm_configuration_ssl
-# Description: Configures the VM with required software and SSL certificates
+# Function: step_6_ssl_management
+# Description: Configures SSL certificates and Nginx with HTTPS
 # Parameters: None
 # Returns: 0 on success, exits on error
-step_6_vm_configuration_ssl() {
-  info "=== STEP 6: VM CONFIGURATION AND SSL SETUP ==="
+step_6_ssl_management() {
+  info "=== STEP 6: SSL CERTIFICATE MANAGEMENT ==="
 
   # Create a temporary script for VM configuration with actual domain name
   cat > /tmp/vm_setup.sh << VMSCRIPT
@@ -498,24 +498,11 @@ sudo mkdir -p /etc/ssl/private
 
 # Enable Nginx to start on boot
 sudo systemctl enable nginx
-
-# Set up environment variables
-if [ ! -f '.env' ]; then
-  touch .env
-fi
 VMSCRIPT
 
   # Copy and execute the setup script on VM
   gcloud compute scp /tmp/vm_setup.sh "$INSTANCE_NAME":/tmp/vm_setup.sh --zone="$ZONE"
   gcloud compute ssh "$INSTANCE_NAME" --zone="$ZONE" --command="chmod +x /tmp/vm_setup.sh && /tmp/vm_setup.sh"
-
-  # Copy environment variables from .env.production on local machine
-  info "Copying environment configuration to VM..."
-  gcloud compute scp .env.production "$INSTANCE_NAME":/home/$USER/$PROJECT_DIR/.env --zone="$ZONE"
-
-  # Copy production docker-compose file
-  info "Copying production docker compose configuration..."
-  gcloud compute scp docker-compose.prod.yml "$INSTANCE_NAME":/home/$USER/$PROJECT_DIR/ --zone="$ZONE"
 
   # Upload SSL certificates to VM
   info "Uploading SSL certificates to VM..."
@@ -622,12 +609,45 @@ step_7_nodejs_gemini_installation() {
   "
 }
 
-# Function: step_8_application_startup
+# Function: step_8_environment_configuration
+# Description: Copies environment variables and production configurations to VM
+# Parameters: None
+# Returns: 0 on success, exits on error
+step_8_environment_configuration() {
+  info "=== STEP 8: ENVIRONMENT AND PRODUCTION CONFIGURATION ==="
+
+  # Copy environment variables from .env.production on local machine
+  info "Copying environment configuration to VM..."
+  gcloud compute scp .env.production "$INSTANCE_NAME":/home/$USER/$PROJECT_DIR/.env --zone="$ZONE"
+
+  # Copy production docker-compose file
+  info "Copying production docker compose configuration..."
+  gcloud compute scp deploy/docker-compose.prod.yml "$INSTANCE_NAME":/home/$USER/$PROJECT_DIR/ --zone="$ZONE"
+
+  # Set up basic environment file structure on VM
+  gcloud compute ssh "$INSTANCE_NAME" --zone="$ZONE" --command="
+    set -e
+    cd '$PROJECT_DIR'
+    
+    # Ensure .env file exists and has proper permissions
+    if [ ! -f '.env' ]; then
+      touch .env
+    fi
+    chmod 600 .env
+    
+    # Verify production configuration files are in place
+    ls -la docker-compose.prod.yml
+    echo 'Environment and production configuration setup completed.'
+  "
+}
+
+
+# Function: step_9_application_startup
 # Description: Starts the MetaMCP application using Docker Compose
 # Parameters: None
 # Returns: 0 on success, exits on error
-step_8_application_startup() {
-  info "=== STEP 8: APPLICATION STARTUP (DOCKER COMPOSE) ==="
+step_9_application_startup() {
+  info "=== STEP 9: APPLICATION STARTUP (DOCKER COMPOSE) ==="
   
   # Start the MetaMCP application using Docker Compose
   gcloud compute ssh "$INSTANCE_NAME" --zone="$ZONE" --command="
@@ -635,6 +655,12 @@ step_8_application_startup() {
     
     # Navigate to project directory
     cd '$PROJECT_DIR'
+
+    # Remove existing docker-compose.yml since it's not for production
+    [ -f docker-compose.yml ] && sudo rm docker-compose.yml
+
+    # rename docker-compose.prod.yml to docker-compose.yml
+    sudo cp docker-compose.prod.yml docker-compose.yml
     
     # Ensure user is in docker group for permissions
     sudo usermod -aG docker \$USER
@@ -651,12 +677,12 @@ step_8_application_startup() {
   "
 }
 
-# Function: step_9_health_checks_validation
+# Function: step_10_health_checks_validation
 # Description: Performs comprehensive health checks on all deployed services
 # Parameters: None
 # Returns: 0 on success, exits on error
-step_9_health_checks_validation() {
-  info "=== STEP 9: HEALTH CHECKS AND VALIDATION ==="
+step_10_health_checks_validation() {
+  info "=== STEP 10: HEALTH CHECKS AND VALIDATION ==="
   gcloud compute ssh "$INSTANCE_NAME" --zone="$ZONE" --command="
     set -e
     cd '$PROJECT_DIR'
@@ -693,12 +719,12 @@ step_9_health_checks_validation() {
   "
 }
 
-# Function: step_10_final_information
+# Function: step_11_final_information
 # Description: Displays final deployment information and usage instructions
 # Parameters: None
 # Returns: 0 on success
-step_10_final_information() {
-  info "=== STEP 10: FINAL INFORMATION ==="
+step_11_final_information() {
+  info "=== STEP 11: FINAL INFORMATION ==="
   info "Deployment completed successfully!"
   info "Application URL: https://$DOMAIN_NAME"
   info "Static IP: $STATIC_IP"
@@ -722,11 +748,11 @@ step_10_final_information() {
   info "cd $PROJECT_DIR && docker-compose -f docker-compose.prod.yml logs -f"
 }
 
-# Function: step_11_dns_debug_troubleshooting
+# Function: step_12_dns_debug_troubleshooting
 # Description: Provides DNS debugging and troubleshooting capabilities
 # Parameters: None
 # Returns: 0 on success, 1 on API errors
-step_11_dns_debug_troubleshooting() {
+step_12_dns_debug_troubleshooting() {
   debug_dns_api
   
   info ""
@@ -748,15 +774,16 @@ show_step_menu() {
   echo "3. Networking Setup (Static IP, Firewall)"
   echo "4. VM Instance Creation"
   echo "5. DNS Configuration (Enhanced with Cleanup)"
-  echo "6. VM Configuration and SSL Setup"
+  echo "6. SSL Certificate Management"
   echo "7. Node.js and Gemini CLI Installation"
-  echo "8. Application Startup (Docker Compose)"
-  echo "9. Health Checks and Validation"
-  echo "10. Final Information Display"
-  echo "11. DNS Debug & Troubleshooting"
+  echo "8. Environment and Production Configuration"
+  echo "9. Application Startup (Docker Compose)"
+  echo "10. Health Checks and Validation"
+  echo "11. Final Information Display"
+  echo "12. DNS Debug & Troubleshooting"
   echo "0. Run All Steps (Full Deployment)"
   echo ""
-  read -p "Select starting step (0-11): " START_STEP
+  read -p "Select starting step (0-12): " START_STEP
   echo ""
 }
 
@@ -770,8 +797,8 @@ validate_free_tier_region "$REGION"
 show_step_menu
 
 # Validate step selection
-if [[ ! $START_STEP =~ ^[0-9]|1[01]$ ]]; then
-  echo "ERROR: Invalid step selection. Please choose 0-11."
+if [[ ! $START_STEP =~ ^[0-9]|1[0-2]$ ]]; then
+  echo "ERROR: Invalid step selection. Please choose 0-12."
   exit 1
 fi
 
@@ -804,9 +831,9 @@ if [ "$START_STEP" -le 5 ]; then
   step_5_dns_configuration
 fi
 
-# Step 6: VM Configuration and SSL Setup
+# Step 6: SSL Certificate Management
 if [ "$START_STEP" -le 6 ]; then
-  step_6_vm_configuration_ssl
+  step_6_ssl_management
 fi
 
 # Step 7: Node.js and Gemini CLI Installation
@@ -814,22 +841,27 @@ if [ "$START_STEP" -le 7 ]; then
   step_7_nodejs_gemini_installation
 fi
 
-# Step 8: Application Startup (Docker Compose)
+# Step 8: Environment and Production Configuration
 if [ "$START_STEP" -le 8 ]; then
-  step_8_application_startup
+  step_8_environment_configuration
 fi
 
-# Step 9: Health Checks and Validation
+# Step 9: Application Startup (Docker Compose)
 if [ "$START_STEP" -le 9 ]; then
-  step_9_health_checks_validation
+  step_9_application_startup
 fi
 
-# Step 10: Final Information
+# Step 10: Health Checks and Validation
 if [ "$START_STEP" -le 10 ]; then
-  step_10_final_information
+  step_10_health_checks_validation
 fi
 
-# Step 11: DNS Debug & Troubleshooting
-if [ "$START_STEP" -eq 11 ]; then
-  step_11_dns_debug_troubleshooting
+# Step 11: Final Information
+if [ "$START_STEP" -le 11 ]; then
+  step_11_final_information
+fi
+
+# Step 12: DNS Debug & Troubleshooting
+if [ "$START_STEP" -eq 12 ]; then
+  step_12_dns_debug_troubleshooting
 fi

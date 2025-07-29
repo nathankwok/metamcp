@@ -8,6 +8,9 @@ services:
     ports:
       - "12008:12008"
       - "12009:12009"
+    volumes:
+      - /usr/local/bin/gemini:/usr/local/bin/gemini:ro
+      - /usr/bin/npx:/usr/bin/npx:ro
     environment:
       # Postgres connection details (Supabase)
       POSTGRES_HOST: ${POSTGRES_HOST}

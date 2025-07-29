@@ -550,6 +550,16 @@ VMSCRIPT
 step_7_nodejs_gemini_installation() {
   info "=== STEP 7: NODE.JS AND GEMINI CLI INSTALLATION ==="
   
+  # Extract GEMINI_API_KEY from local .env.production
+  GEMINI_API_KEY=$(grep "^GEMINI_API_KEY=" .env.production | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+  
+  if [ -z "$GEMINI_API_KEY" ]; then
+    echo "WARNING: GEMINI_API_KEY not found in .env.production"
+    echo "Gemini CLI may not work properly without an API key"
+  else
+    info "Found GEMINI_API_KEY in .env.production"
+  fi
+  
   # Install Node.js and Gemini CLI on the VM
   gcloud compute ssh "$INSTANCE_NAME" --zone="$ZONE" --command="
     set -e
@@ -566,6 +576,13 @@ step_7_nodejs_gemini_installation() {
     echo 'Configuring Node.js PATH...'
     echo 'export PATH=\"/usr/bin:\$PATH\"' >> ~/.profile
     echo 'export PATH=\"/usr/bin:\$PATH\"' >> ~/.bashrc
+    
+    # Add GEMINI_API_KEY to profile if available
+    if [ -n '$GEMINI_API_KEY' ]; then
+      echo 'export GEMINI_API_KEY=\"$GEMINI_API_KEY\"' >> ~/.profile
+      echo 'export GEMINI_API_KEY=\"$GEMINI_API_KEY\"' >> ~/.bashrc
+      echo 'Added GEMINI_API_KEY to environment'
+    fi
     
     # Source profile to update current session
     source ~/.profile 2>/dev/null || true

@@ -577,11 +577,16 @@ step_7_nodejs_gemini_installation() {
     echo 'export PATH=\"/usr/bin:\$PATH\"' >> ~/.profile
     echo 'export PATH=\"/usr/bin:\$PATH\"' >> ~/.bashrc
     
-    # Add GEMINI_API_KEY to profile if available
+    # Add GEMINI_API_KEY to profile if available and not already set
     if [ -n '$GEMINI_API_KEY' ]; then
-      echo 'export GEMINI_API_KEY=\"$GEMINI_API_KEY\"' >> ~/.profile
-      echo 'export GEMINI_API_KEY=\"$GEMINI_API_KEY\"' >> ~/.bashrc
-      echo 'Added GEMINI_API_KEY to environment'
+      # Check if GEMINI_API_KEY is already in the profile files
+      if ! grep -q 'GEMINI_API_KEY' ~/.profile 2>/dev/null && ! grep -q 'GEMINI_API_KEY' ~/.bashrc 2>/dev/null; then
+        echo 'export GEMINI_API_KEY=\"$GEMINI_API_KEY\"' >> ~/.profile
+        echo 'export GEMINI_API_KEY=\"$GEMINI_API_KEY\"' >> ~/.bashrc
+        echo 'Added GEMINI_API_KEY to environment'
+      else
+        echo 'GEMINI_API_KEY already exists in profile files, skipping'
+      fi
     fi
     
     # Source profile to update current session

@@ -11,6 +11,8 @@ node_modules
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
+*/*.json
 
 # Testing
 coverage
@@ -39,3 +41,6 @@ yarn-error.log*
 
 .cursor/
 .vscode/
+
+
+ssl/

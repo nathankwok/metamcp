@@ -688,7 +688,7 @@ step_9_application_startup() {
     sudo usermod -aG docker \$USER
     
     # Start the application with production compose file
-    sudo docker-compose -f docker-compose.prod.yml up -d
+    sudo docker-compose up -d
     
     # Wait for services to be ready
     sleep 30

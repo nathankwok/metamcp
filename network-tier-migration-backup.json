@@ -1,0 +1,143 @@
+{
+  "timestamp": "2025-08-05T13:02:57Z",
+  "vm_config": {
+    "canIpForward": false,
+    "cpuPlatform": "Intel Broadwell",
+    "creationTimestamp": "2025-07-29T01:43:34.278-07:00",
+    "deletionProtection": false,
+    "disks": [
+      {
+        "architecture": "X86_64",
+        "autoDelete": true,
+        "boot": true,
+        "deviceName": "persistent-disk-0",
+        "diskSizeGb": "20",
+        "guestOsFeatures": [
+          {
+            "type": "UEFI_COMPATIBLE"
+          },
+          {
+            "type": "VIRTIO_SCSI_MULTIQUEUE"
+          },
+          {
+            "type": "GVNIC"
+          },
+          {
+            "type": "SEV_CAPABLE"
+          },
+          {
+            "type": "SEV_LIVE_MIGRATABLE_V2"
+          }
+        ],
+        "index": 0,
+        "interface": "SCSI",
+        "kind": "compute#attachedDisk",
+        "licenses": [
+          "https://www.googleapis.com/compute/v1/projects/debian-cloud/global/licenses/debian-12-bookworm"
+        ],
+        "mode": "READ_WRITE",
+        "source": "https://www.googleapis.com/compute/v1/projects/metamcp-12008/zones/us-central1-a/disks/metamcp-instance",
+        "type": "PERSISTENT"
+      }
+    ],
+    "fingerprint": "EvKw6Bo2p8s=",
+    "id": "2537676812807649115",
+    "kind": "compute#instance",
+    "labelFingerprint": "42WmSpB8rSM=",
+    "lastStartTimestamp": "2025-07-30T00:14:49.960-07:00",
+    "lastStopTimestamp": "2025-07-29T21:38:34.759-07:00",
+    "machineType": "https://www.googleapis.com/compute/v1/projects/metamcp-12008/zones/us-central1-a/machineTypes/e2-micro",
+    "metadata": {
+      "fingerprint": "7KvHktFMWkg=",
+      "items": [
+        {
+          "key": "ssh-key",
+          "value": "USERNAME:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCDxSriD0Eq71VzVT3h8SuANfTmQLfMTOYmquoXhmHSCLL3xObBv91PySr207e80KoFNFm1vjPB7nvmyXhjWzmUYpYAeSkV4YbcquAunvdxRUQJrnf+TGbeYW7asoNJP4tDWDoQV8BDpZN7yE2SKlD6Q5/NKH8kcR/0/oSVz8xVjiEtwpLVubYNZ2ZcRhbRw9qHuXX7LYvjxs+QhL/igV2CejK8SqDq1XRbR4ou2dGaYwQjkVokaNU8Arf6BFIFXcK5DIjVB73HgAlfhNenGc59U4q6pxSgCOwv+xLcgow3Wkk6uDmfuowRggvfyOSr//cp3qqyvYuU8b2AIEtdu+NZ\n"
+        },
+        {
+          "key": "ssh-keys",
+          "value": "abstractiv_eth:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBDRiYPLyBCBNQT4KP1NCGme87wHZnSE/MXad2XeHi/MDwdyNIz6lbD3ppQFcpnfdex5OH5Ubeoa/LvlMYuPcJ2U= google-ssh {\"userName\":\"abstractiv.eth@gmail.com\",\"expireOn\":\"2025-07-30T23:58:20+0000\"}\nabstractiv_eth:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAGOaA7CIgjDZ9V5rxWfADPEB+6QiQpus8Gv1aAljlErcTRI6tn7dpDsJV61NuGZnqZYV9uF5aE1EvqmHWzov0O94JF8hM9KqhNpJnwGzZo7N82mwu/ktPLAHlzPi/X7/2wmOLBvVEuN+fJlw7ArYCLmRuJtVFiRKv6ojckMjS2Kd4S9rPvGqcxVnVL6moI+uPlV5IpRP81jTegoXJm+YGiQKkkZlLGgmwufbJhN64BypT7TPh/odj8DN78zsoY6HTKZ/06zF/6WmCfSBaIckzqAqIlJNNNmdNFLw3KIr6xBcVhM/DTQTE5dWx1xPZqq2uYULtByJTpebYbrFWx/0ark= google-ssh {\"userName\":\"abstractiv.eth@gmail.com\",\"expireOn\":\"2025-07-30T23:58:25+0000\"}"
+        }
+      ],
+      "kind": "compute#metadata"
+    },
+    "name": "metamcp-instance",
+    "networkInterfaces": [
+      {
+        "accessConfigs": [
+          {
+            "kind": "compute#accessConfig",
+            "name": "external-nat",
+            "natIP": "35.225.80.112",
+            "networkTier": "PREMIUM",
+            "type": "ONE_TO_ONE_NAT"
+          }
+        ],
+        "fingerprint": "oRE5PzneKgI=",
+        "kind": "compute#networkInterface",
+        "name": "nic0",
+        "network": "https://www.googleapis.com/compute/v1/projects/metamcp-12008/global/networks/default",
+        "networkIP": "10.128.0.2",
+        "stackType": "IPV4_ONLY",
+        "subnetwork": "https://www.googleapis.com/compute/v1/projects/metamcp-12008/regions/us-central1/subnetworks/default"
+      }
+    ],
+    "satisfiesPzi": true,
+    "scheduling": {
+      "automaticRestart": true,
+      "onHostMaintenance": "MIGRATE",
+      "preemptible": false,
+      "provisioningModel": "STANDARD"
+    },
+    "selfLink": "https://www.googleapis.com/compute/v1/projects/metamcp-12008/zones/us-central1-a/instances/metamcp-instance",
+    "serviceAccounts": [
+      {
+        "email": "555166161772-compute@developer.gserviceaccount.com",
+        "scopes": [
+          "https://www.googleapis.com/auth/devstorage.read_only",
+          "https://www.googleapis.com/auth/logging.write",
+          "https://www.googleapis.com/auth/monitoring.write",
+          "https://www.googleapis.com/auth/pubsub",
+          "https://www.googleapis.com/auth/service.management.readonly",
+          "https://www.googleapis.com/auth/servicecontrol",
+          "https://www.googleapis.com/auth/trace.append"
+        ]
+      }
+    ],
+    "shieldedInstanceConfig": {
+      "enableIntegrityMonitoring": true,
+      "enableSecureBoot": false,
+      "enableVtpm": true
+    },
+    "shieldedInstanceIntegrityPolicy": {
+      "updateAutoLearnPolicy": true
+    },
+    "startRestricted": false,
+    "status": "RUNNING",
+    "tags": {
+      "fingerprint": "6smc4R4d39I=",
+      "items": [
+        "http-server",
+        "https-server"
+      ]
+    },
+    "zone": "https://www.googleapis.com/compute/v1/projects/metamcp-12008/zones/us-central1-a"
+  },
+  "static_ip_config": {
+    "address": "35.225.80.112",
+    "addressType": "EXTERNAL",
+    "creationTimestamp": "2025-07-29T01:40:58.882-07:00",
+    "description": "",
+    "id": "8072871123037272053",
+    "kind": "compute#address",
+    "labelFingerprint": "42WmSpB8rSM=",
+    "name": "metamcp-static-ip",
+    "networkTier": "PREMIUM",
+    "region": "https://www.googleapis.com/compute/v1/projects/metamcp-12008/regions/us-central1",
+    "selfLink": "https://www.googleapis.com/compute/v1/projects/metamcp-12008/regions/us-central1/addresses/metamcp-static-ip",
+    "status": "IN_USE",
+    "users": [
+      "https://www.googleapis.com/compute/v1/projects/metamcp-12008/zones/us-central1-a/instances/metamcp-instance"
+    ]
+  }
+}

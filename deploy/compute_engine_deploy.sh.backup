@@ -358,7 +358,7 @@ step_3_networking_setup() {
   info "Checking for existing static IP..."
   if ! gcloud compute addresses describe "$STATIC_IP_NAME" --region="$REGION" &>/dev/null; then
     info "Creating a new static IP address..."
-    gcloud compute addresses create "$STATIC_IP_NAME" --region="$REGION" --network-tier=STANDARD
+    gcloud compute addresses create "$STATIC_IP_NAME" --region="$REGION"
   else
     info "Static IP address '$STATIC_IP_NAME' already exists."
   fi
@@ -402,7 +402,7 @@ step_4_vm_instance_creation() {
       --tags="http-server,https-server" \
       --maintenance-policy="MIGRATE" \
       --provisioning-model="STANDARD"
-      --network-tier=STANDARD \  else
+  else
     info "VM instance '$INSTANCE_NAME' already exists."
   fi
 

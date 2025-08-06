@@ -1,0 +1,10 @@
+{
+  "current_step": 9,
+  "timestamp": "2025-08-05T13:27:32Z",
+  "region": "us-central1",
+  "zone": "us-central1-a",
+  "instance_name": "metamcp-instance",
+  "old_static_ip_name": "metamcp-static-ip",
+  "new_static_ip_name": "metamcp-static-ip-standard",
+  "data": {"cleanup_completed": true}
+}
